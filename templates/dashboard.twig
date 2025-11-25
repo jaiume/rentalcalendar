@@ -1,0 +1,43 @@
+{% extends "layout.twig" %}
+
+{% block title %}Dashboard | Rental Calendar{% endblock %}
+
+{% block content %}
+  <section class="py-5">
+    <div class="container">
+      <div class="row g-4">
+        <div class="col-12">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body">
+              <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
+                <div>
+                  <p class="text-muted mb-1">Welcome back</p>
+                  <h2 class="h4 mb-0">{{ user.name ?? 'User' }}</h2>
+                  <small class="text-muted">{{ user.email ?? '' }}</small>
+                </div>
+                <a href="/logout" class="btn btn-outline-danger mt-3 mt-md-0">Logout</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h5 class="card-title">Upcoming reservations</h5>
+              <p class="text-muted mb-0">Connect your data source to show live bookings.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h5 class="card-title">Team availability</h5>
+              <p class="text-muted mb-0">Use Twig partials to reuse this component across devices.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+

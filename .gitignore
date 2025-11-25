@@ -1,0 +1,9 @@
+/vendor/
+/config/config.ini
+/.env
+/.idea/
+/.vscode/
+/storage/logs/*
+composer.lock
+node_modules/
+

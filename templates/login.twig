@@ -1,0 +1,41 @@
+{% extends "layout.twig" %}
+
+{% block title %}Login | Rental Calendar{% endblock %}
+
+{% block content %}
+  <section class="py-5">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-5">
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+              <h1 class="h3 mb-3 text-center">Sign in</h1>
+              {% if error %}
+                <div class="alert alert-danger">
+                  {{ error }}
+                </div>
+              {% endif %}
+              <form method="post" action="/login" class="needs-validation" novalidate>
+                <div class="mb-3">
+                  <label class="form-label" for="email">Email address</label>
+                  <input
+                    type="email"
+                    class="form-control"
+                    id="email"
+                    name="email"
+                    placeholder="you@example.com"
+                    required
+                  >
+                </div>
+                <div class="d-grid">
+                  <button class="btn btn-primary" type="submit">Send Login Link</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+

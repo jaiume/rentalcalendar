@@ -1,0 +1,39 @@
+{% extends "layout.twig" %}
+
+{% block title %}Welcome | Rental Calendar{% endblock %}
+
+{% block content %}
+  <section class="hero d-flex align-items-center">
+    <div class="container py-5">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-6">
+          <span class="badge bg-primary-subtle text-primary mb-3">Unified scheduling</span>
+          <h1 class="display-5 fw-bold text-primary mb-3">
+            Stay in sync across desktop and mobile
+          </h1>
+          <p class="lead text-secondary mb-4">
+            Responsive Bootstrap layouts keep your rental calendar consistent on any device—no duplicated templates required.
+          </p>
+          <div class="d-flex flex-wrap gap-3">
+            <a href="/login" class="btn btn-primary btn-lg px-4">Sign in</a>
+            <a href="/dashboard" class="btn btn-outline-primary btn-lg px-4">View dashboard</a>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card border-0 shadow">
+            <div class="card-body">
+              <h5 class="card-title">Why Slim + Twig + Bootstrap?</h5>
+              <ul class="list-unstyled small text-secondary">
+                <li class="mb-2">• Slim middleware pipeline with token authentication</li>
+                <li class="mb-2">• Twig templates shared across desktop and mobile</li>
+                <li class="mb-2">• Bootstrap 5 utilities for responsive design</li>
+                <li>• Config-driven services for email, auth, and more</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
