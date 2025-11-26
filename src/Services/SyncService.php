@@ -25,6 +25,37 @@ class SyncService
     }
 
     /**
+     * Check if any sync partners need to be synced based on recheck_interval
+     * 
+     * @return bool True if any partners need syncing
+     */
+    public function needsSync(): bool
+    {
+        $rows = $this->linkDao->findAllActive();
+        
+        foreach ($rows as $row) {
+            $partnerName = $row['sync_partner_name'];
+            $lastFetch = $row['last_fetch_at'];
+            
+            // If never fetched, needs sync
+            if (!$lastFetch) {
+                return true;
+            }
+            
+            // Check recheck interval
+            $interval = (int) $this->config::get($partnerName . '.recheck_interval', 3600);
+            $lastFetchTime = new DateTime($lastFetch);
+            $nextFetchTime = (clone $lastFetchTime)->modify("+{$interval} seconds");
+            
+            if (new DateTime() >= $nextFetchTime) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
      * Sync all active links with progress callback.
      * 
      * @param bool $force Force sync even if interval hasn't passed

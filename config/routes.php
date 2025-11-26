@@ -36,6 +36,7 @@ return function (App $app): void {
         $group->get('/api/dashboard/events', [DashboardApiController::class, 'getEvents'])->setName('api.dashboard.events');
         $group->get('/api/dashboard/cleaners', [DashboardApiController::class, 'getCleaners'])->setName('api.dashboard.cleaners');
         $group->get('/api/dashboard/sync', [DashboardApiController::class, 'syncCalendar'])->setName('api.dashboard.sync');
+        $group->get('/api/dashboard/check-sync', [DashboardApiController::class, 'checkSyncNeeded'])->setName('api.dashboard.check_sync');
         $group->post('/api/dashboard/reservations', [DashboardApiController::class, 'createReservation'])->setName('api.dashboard.create_reservation');
         $group->post('/api/dashboard/cleaning', [DashboardApiController::class, 'createCleaning'])->setName('api.dashboard.create_cleaning');
         $group->post('/api/dashboard/maintenance', [DashboardApiController::class, 'createMaintenance'])->setName('api.dashboard.create_maintenance');

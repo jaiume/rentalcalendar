@@ -152,6 +152,23 @@
               <label class="form-label">Description</label>
               <textarea class="form-control" id="reservationDescription" name="description" rows="3"></textarea>
             </div>
+            
+            <!-- Date Range Display/Input for Reservations -->
+            <div class="mb-3" id="dateRangeDisplayWrapper" style="display: none;">
+              <label class="form-label">Date Range</label>
+              <div class="form-control bg-light" id="dateRangeDisplay"></div>
+            </div>
+            <div class="row mb-3" id="dateRangeInputs" style="display: none;">
+              <div class="col-md-6 mb-3 mb-md-0">
+                <label class="form-label">Start Date *</label>
+                <input type="date" class="form-control" id="eventStartDateInput" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">End Date *</label>
+                <input type="date" class="form-control" id="eventEndDateInput" required>
+              </div>
+            </div>
+            
             <div class="row">
               <div class="col-md-6 mb-3">
                 <label class="form-label">Start Time</label>
@@ -210,12 +227,6 @@
               <label class="form-label">Type</label>
               <input type="text" class="form-control" id="maintenanceType" name="type" placeholder="e.g., Repair, Inspection">
             </div>
-          </div>
-
-          <!-- Date Range Display -->
-          <div class="mb-3">
-            <label class="form-label">Date Range</label>
-            <div class="form-control bg-light" id="dateRangeDisplay"></div>
           </div>
         </form>
       </div>
@@ -497,7 +508,58 @@ class Dashboard {
     await this.loadProperties();
     await this.loadCleaners();
     this.setupEventListeners();
+    await this.checkAndAutoSync();
     this.loadView();
+  }
+
+  async checkAndAutoSync() {
+    try {
+      const response = await fetch('/api/dashboard/check-sync');
+      const data = await response.json();
+      
+      if (data.needs_sync) {
+        console.log('Auto-sync triggered: sync interval has passed');
+        // Trigger sync silently in background without showing modal
+        this.performSilentSync();
+      }
+    } catch (error) {
+      console.error('Failed to check sync status:', error);
+    }
+  }
+
+  async performSilentSync() {
+    try {
+      // Create EventSource for Server-Sent Events
+      const eventSource = new EventSource('/api/dashboard/sync?force=0');
+      
+      eventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          
+          if (data.status === 'complete') {
+            console.log('Auto-sync completed:', data.message);
+            eventSource.close();
+            
+            // Reload events after sync completes
+            if (this.currentView) {
+              this.loadView();
+            }
+          } else if (data.status === 'error') {
+            console.error('Auto-sync error:', data.message);
+            eventSource.close();
+          }
+        } catch (err) {
+          console.error('Error parsing sync data:', err);
+        }
+      };
+      
+      eventSource.onerror = (e) => {
+        console.error('Auto-sync connection error:', e);
+        eventSource.close();
+      };
+    } catch (error) {
+      console.error('Failed to start auto-sync:', error);
+    }
   }
 
   async loadProperties() {
@@ -1886,8 +1948,53 @@ class Dashboard {
     const startDisplay = formatDate(startDate);
     const endDisplay = formatDate(endDate);
     
-    document.getElementById('dateRangeDisplay').textContent = 
-      startDisplay === endDisplay ? startDisplay : `${startDisplay} - ${endDisplay}`;
+    // Show editable date inputs for non-sync partner events, or read-only display for sync partner
+    const dateRangeDisplayWrapper = document.getElementById('dateRangeDisplayWrapper');
+    const dateRangeDisplay = document.getElementById('dateRangeDisplay');
+    const dateRangeInputs = document.getElementById('dateRangeInputs');
+    const startDateInput = document.getElementById('eventStartDateInput');
+    const endDateInput = document.getElementById('eventEndDateInput');
+    
+    if (isSyncPartner) {
+      // Show read-only display for sync partner reservations
+      dateRangeDisplayWrapper.style.display = 'block';
+      dateRangeInputs.style.display = 'none';
+      dateRangeDisplay.textContent = 
+        startDisplay === endDisplay ? startDisplay : `${startDisplay} - ${endDisplay}`;
+    } else {
+      // Show editable date inputs for all editable events
+      dateRangeDisplayWrapper.style.display = 'none';
+      dateRangeInputs.style.display = 'flex';
+      startDateInput.value = startDate;
+      endDateInput.value = endDate;
+      
+      // Update labels based on event type
+      const startLabel = dateRangeInputs.querySelector('.col-md-6:first-child label');
+      const endLabel = dateRangeInputs.querySelector('.col-md-6:last-child label');
+      
+      if (type === 'cleaning') {
+        startLabel.textContent = 'Cleaning Date *';
+        endLabel.style.display = 'none';
+        endLabel.parentElement.style.display = 'none';
+        startLabel.parentElement.classList.remove('col-md-6');
+        startLabel.parentElement.classList.add('col-12');
+      } else {
+        startLabel.textContent = 'Start Date *';
+        endLabel.textContent = 'End Date *';
+        endLabel.style.display = 'block';
+        endLabel.parentElement.style.display = 'block';
+        startLabel.parentElement.classList.remove('col-12');
+        startLabel.parentElement.classList.add('col-md-6');
+      }
+      
+      // Add event listeners to sync date inputs with hidden fields
+      startDateInput.onchange = () => {
+        document.getElementById('eventStartDate').value = startDateInput.value;
+      };
+      endDateInput.onchange = () => {
+        document.getElementById('eventEndDate').value = endDateInput.value;
+      };
+    }
 
     // Reset form if creating new
     if (!isEdit) {
@@ -1896,6 +2003,10 @@ class Dashboard {
       document.getElementById('eventPropertyId').value = propertyId;
       document.getElementById('eventStartDate').value = startDate;
       document.getElementById('eventEndDate').value = endDate;
+      if (!isSyncPartner) {
+        startDateInput.value = startDate;
+        endDateInput.value = endDate;
+      }
     }
 
     const modal = new bootstrap.Modal(document.getElementById('eventModal'));

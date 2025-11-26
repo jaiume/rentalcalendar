@@ -182,6 +182,21 @@ class DashboardApiController
         return new SlimResponse();
     }
 
+    public function checkSyncNeeded(Request $request, Response $response): Response
+    {
+        try {
+            $needsSync = $this->syncService->needsSync();
+            
+            $response = new SlimResponse();
+            $response->getBody()->write(json_encode(['needs_sync' => $needsSync]));
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (\Exception $e) {
+            $response = new SlimResponse();
+            $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
     public function createReservation(Request $request, Response $response): Response
     {
         $data = (array) $request->getParsedBody();
