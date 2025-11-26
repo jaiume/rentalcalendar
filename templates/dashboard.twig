@@ -1015,13 +1015,19 @@ class Dashboard {
       });
     }
 
+    // Helper function to parse date string as local time (not UTC)
+    const parseLocalDate = (dateStr) => {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    };
+
     // Sort by date
-    allEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
+    allEvents.sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
     // Filter to current and future events (including events that end today or later)
     today.setHours(0, 0, 0, 0);
     const futureEvents = allEvents.filter(e => {
-      const endDate = new Date(e.endDate);
+      const endDate = parseLocalDate(e.endDate);
       endDate.setHours(0, 0, 0, 0);
       return endDate >= today;
     });
@@ -1035,13 +1041,13 @@ class Dashboard {
     let htmlContent = '';
     
     futureEvents.forEach((event, index) => {
-      const startDate = new Date(event.date).toLocaleDateString('en-US', {
+      const startDate = parseLocalDate(event.date).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
       });
       
-      const endDate = new Date(event.endDate).toLocaleDateString('en-US', {
+      const endDate = parseLocalDate(event.endDate).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
@@ -1124,18 +1130,28 @@ class Dashboard {
       .filter(r => r.property_id == propertyId && 
                    dateStr >= r.reservation_start_date && 
                    dateStr <= r.reservation_end_date &&
-                   !renderedEvents.has(`reservation-${r.reservation_id}-${dateStr}`))
+                   !renderedEvents.has(`reservation-${r.reservation_id}`))
       .forEach(r => {
-        renderedEvents.add(`reservation-${r.reservation_id}-${dateStr}`);
-        
         // Check if this is a multi-day event
         const isMultiDay = r.reservation_start_date !== r.reservation_end_date;
         const isStartDay = dateStr === r.reservation_start_date;
         
-        if (isMultiDay && isStartDay) {
+        // For multi-day events, only render once - either on start day or first visible day
+        const firstVisibleDate = allCells[0].dataset.date;
+        const shouldRenderHere = isStartDay || (r.reservation_start_date < firstVisibleDate && dateStr === firstVisibleDate);
+        
+        if (isMultiDay && shouldRenderHere) {
+          renderedEvents.add(`reservation-${r.reservation_id}`);
+          
+          // Determine the actual start cell index (use 0 if reservation starts before visible range)
+          let startCellIndex = dayIndex;
+          if (r.reservation_start_date < firstVisibleDate) {
+            startCellIndex = 0;
+          }
+          
           // Find the end cell for this reservation
-          let endCellIndex = dayIndex;
-          for (let i = dayIndex; i < allCells.length; i++) {
+          let endCellIndex = startCellIndex;
+          for (let i = startCellIndex; i < allCells.length; i++) {
             const cellDateStr = allCells[i].dataset.date;
             if (cellDateStr <= r.reservation_end_date) {
               endCellIndex = i;
@@ -1144,7 +1160,7 @@ class Dashboard {
             }
           }
           
-          const startCell = allCells[dayIndex];
+          const startCell = allCells[startCellIndex];
           const endCell = allCells[endCellIndex];
           
           const event = document.createElement('div');
@@ -1171,7 +1187,7 @@ class Dashboard {
           }, 0);
           
           // Set initial width as fallback
-          const spanCells = endCellIndex - dayIndex + 1;
+          const spanCells = endCellIndex - startCellIndex + 1;
           const cellWidth = startCell.offsetWidth || 40;
           event.style.left = '0px';
           event.style.width = `${cellWidth * spanCells}px`;
@@ -1254,18 +1270,28 @@ class Dashboard {
       .filter(m => m.property_id == propertyId && 
                    dateStr >= m.maintenance_start_date && 
                    dateStr <= m.maintenance_end_date &&
-                   !renderedEvents.has(`maintenance-${m.property_maintenance_id}-${dateStr}`))
+                   !renderedEvents.has(`maintenance-${m.property_maintenance_id}`))
       .forEach(m => {
-        renderedEvents.add(`maintenance-${m.property_maintenance_id}-${dateStr}`);
-        
         // Check if this is a multi-day event
         const isMultiDay = m.maintenance_start_date !== m.maintenance_end_date;
         const isStartDay = dateStr === m.maintenance_start_date;
         
-        if (isMultiDay && isStartDay) {
+        // For multi-day events, only render once - either on start day or first visible day
+        const firstVisibleDate = allCells[0].dataset.date;
+        const shouldRenderHere = isStartDay || (m.maintenance_start_date < firstVisibleDate && dateStr === firstVisibleDate);
+        
+        if (isMultiDay && shouldRenderHere) {
+          renderedEvents.add(`maintenance-${m.property_maintenance_id}`);
+          
+          // Determine the actual start cell index (use 0 if maintenance starts before visible range)
+          let startCellIndex = dayIndex;
+          if (m.maintenance_start_date < firstVisibleDate) {
+            startCellIndex = 0;
+          }
+          
           // Find the end cell for this maintenance
-          let endCellIndex = dayIndex;
-          for (let i = dayIndex; i < allCells.length; i++) {
+          let endCellIndex = startCellIndex;
+          for (let i = startCellIndex; i < allCells.length; i++) {
             const cellDateStr = allCells[i].dataset.date;
             if (cellDateStr <= m.maintenance_end_date) {
               endCellIndex = i;
@@ -1274,7 +1300,7 @@ class Dashboard {
             }
           }
           
-          const startCell = allCells[dayIndex];
+          const startCell = allCells[startCellIndex];
           const endCell = allCells[endCellIndex];
           
           const event = document.createElement('div');
@@ -1301,7 +1327,7 @@ class Dashboard {
           }, 0);
           
           // Set initial width as fallback
-          const spanCells = endCellIndex - dayIndex + 1;
+          const spanCells = endCellIndex - startCellIndex + 1;
           const cellWidth = startCell.offsetWidth || 40;
           event.style.left = '0px';
           event.style.width = `${cellWidth * spanCells}px`;
