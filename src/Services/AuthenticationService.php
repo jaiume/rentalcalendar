@@ -2,33 +2,144 @@
 
 namespace App\Services;
 
+use App\DAO\UserDAO;
+use App\DAO\LoginCodeDAO;
+use App\DAO\AuthTokenDAO;
 use DateTime;
-use PDO;
 
 class AuthenticationService
 {
     public function __construct(
-        private readonly PDO $db,
+        private readonly UserDAO $userDao,
+        private readonly LoginCodeDAO $loginCodeDao,
+        private readonly AuthTokenDAO $authTokenDao,
         private readonly ConfigService $config
     ) {
+    }
+
+    public function userExists(string $email): bool
+    {
+        try {
+            return $this->userDao->userExists($email);
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     private function getUserByEmail(string $email): ?int
     {
         try {
-            $stmt = $this->db->prepare(
-                'SELECT user_id FROM users WHERE email = :email'
-            );
-            $stmt->execute(['email' => $email]);
+            return $this->userDao->getUserIdByEmail($email);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
 
-            if ($user = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                return (int) $user['user_id'];
+    public function generateLoginCode(string $email): ?array
+    {
+        try {
+            $userId = $this->getUserByEmail($email);
+            if (!$userId) {
+                return null;
+            }
+
+            // Generate 6-digit code
+            $code = str_pad((string) random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+
+            // Generate token for direct link
+            $tokenLength = (int) $this->config::get('auth.token_length', 32);
+            $token = bin2hex(random_bytes(max(16, $tokenLength / 2)));
+
+            // Code expires in 15 minutes, token expires in 1 week
+            $codeExpiry = (new DateTime())->modify('+15 minutes');
+            $tokenExpirySeconds = (int) $this->config::get('auth.token_expiry', 604800);
+            $tokenExpiry = (new DateTime())->modify("+{$tokenExpirySeconds} seconds");
+
+            // Store code - use REPLACE or DELETE then INSERT to handle duplicates
+            // First delete any existing code for this user
+            $this->loginCodeDao->deleteByUserId($userId);
+
+            // Then insert the new code
+            $this->loginCodeDao->create(
+                $userId,
+                password_hash($code, PASSWORD_DEFAULT),
+                password_hash($token, PASSWORD_DEFAULT),
+                $codeExpiry,
+                $tokenExpiry
+            );
+
+            return [
+                'code' => $code,
+                'token' => $token,
+            ];
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    public function verifyLoginCode(string $code): ?string
+    {
+        try {
+            $this->loginCodeDao->cleanupExpired();
+
+            $rows = $this->loginCodeDao->findNonExpiredCodes();
+
+            foreach ($rows as $row) {
+                if (password_verify($code, $row['code'])) {
+                    // Code is valid, generate a new session token
+                    $userId = $row['user_id'];
+                    $tokenLength = (int) $this->config::get('auth.token_length', 32);
+                    $sessionToken = bin2hex(random_bytes(max(16, $tokenLength / 2)));
+                    
+                    $this->authTokenDao->create($userId, password_hash($sessionToken, PASSWORD_DEFAULT));
+
+                    // Delete used login code
+                    $this->loginCodeDao->deleteById($row['login_code_id']);
+
+                    return $sessionToken;
+                }
             }
 
             return null;
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    public function verifyLoginToken(string $token): ?string
+    {
+        try {
+            $this->loginCodeDao->cleanupExpired();
+
+            $rows = $this->loginCodeDao->findNonExpiredTokens();
+
+            foreach ($rows as $row) {
+                if (password_verify($token, $row['token'])) {
+                    // Token is valid, create auth session
+                    $userId = $row['user_id'];
+                    
+                    // Generate new session token
+                    $tokenLength = (int) $this->config::get('auth.token_length', 32);
+                    $sessionToken = bin2hex(random_bytes(max(16, $tokenLength / 2)));
+                    
+                    $this->authTokenDao->create($userId, password_hash($sessionToken, PASSWORD_DEFAULT));
+
+                    // Delete used login code
+                    $this->loginCodeDao->deleteById($row['login_code_id']);
+
+                    return $sessionToken;
+                }
+            }
+
+            return null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function cleanupExpiredCodes(): void
+    {
+        $this->loginCodeDao->cleanupExpired();
     }
 
     public function generateToken(string $email): ?string
@@ -42,18 +153,7 @@ class AuthenticationService
             $tokenLength = (int) $this->config::get('auth.token_length', 32);
             $token = bin2hex(random_bytes(max(16, $tokenLength / 2)));
 
-            $expirySeconds = (int) $this->config::get('auth.token_expiry', 604800);
-            $expiry = (new DateTime())->modify("+{$expirySeconds} seconds");
-
-            $stmt = $this->db->prepare(
-                'INSERT INTO auth_tokens (user_id, token, expiry)
-                 VALUES (:user_id, :token, :expiry)'
-            );
-            $stmt->execute([
-                'user_id' => $userId,
-                'token' => password_hash($token, PASSWORD_DEFAULT),
-                'expiry' => $expiry->format('Y-m-d H:i:s'),
-            ]);
+            $this->authTokenDao->create($userId, password_hash($token, PASSWORD_DEFAULT));
 
             return $token;
         } catch (\Throwable $e) {
@@ -64,25 +164,23 @@ class AuthenticationService
     public function verifyToken(string $token): ?array
     {
         try {
-            $this->cleanupExpiredTokens();
-
-            $stmt = $this->db->prepare(
-                'SELECT t.token, t.expiry, t.user_id, u.email, u.name, u.is_admin, u.unifi_site_name
-                 FROM auth_tokens t
-                 JOIN users u ON t.user_id = u.user_id
-                 WHERE t.expiry > NOW()
-                 ORDER BY t.created_at DESC'
+            $this->authTokenDao->cleanupExpired(
+                (int) $this->config::get('auth.auth_token_expiry', 604800)
             );
-            $stmt->execute();
 
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $expirySeconds = (int) $this->config::get('auth.auth_token_expiry', 604800);
+            $rows = $this->authTokenDao->findAllNonExpiredWithUserDetails($expirySeconds);
+
+            foreach ($rows as $row) {
                 if (password_verify($token, $row['token'])) {
+                    // Token is valid - update last_touched to extend expiry
+                    $this->authTokenDao->updateLastTouched($row['auth_token_id']);
+
                     return [
                         'user_id' => $row['user_id'],
                         'email' => $row['email'],
                         'name' => $row['name'],
-                        'is_admin' => $row['is_admin'],
-                        'unifi_site_name' => $row['unifi_site_name'],
+                        'is_admin' => (bool) $row['is_admin'],
                     ];
                 }
             }
@@ -96,17 +194,19 @@ class AuthenticationService
     public function extendTokenExpiry(string $token): bool
     {
         try {
-            $expirySeconds = (int) $this->config::get('auth.token_expiry', 604800);
-            $newExpiry = (new DateTime())->modify("+{$expirySeconds} seconds");
+            $expirySeconds = (int) $this->config::get('auth.auth_token_expiry', 604800);
 
-            $stmt = $this->db->prepare(
-                'UPDATE auth_tokens SET expiry = :expiry WHERE token = :token'
-            );
+            // Find the token by verifying it against all non-expired tokens
+            $rows = $this->authTokenDao->findAllNonExpired($expirySeconds);
 
-            return $stmt->execute([
-                'expiry' => $newExpiry->format('Y-m-d H:i:s'),
-                'token' => $token,
-            ]);
+            foreach ($rows as $row) {
+                if (password_verify($token, $row['token'])) {
+                    // Found the token, update its last_touched to extend expiry
+                    return $this->authTokenDao->updateLastTouched($row['auth_token_id']);
+                }
+            }
+
+            return false;
         } catch (\Throwable $e) {
             return false;
         }
@@ -114,18 +214,24 @@ class AuthenticationService
 
     private function cleanupExpiredTokens(): void
     {
-        $stmt = $this->db->prepare(
-            'DELETE FROM auth_tokens WHERE expiry <= NOW()'
-        );
-        $stmt->execute();
+        $expirySeconds = (int) $this->config::get('auth.auth_token_expiry', 604800);
+        $this->authTokenDao->cleanupExpired($expirySeconds);
     }
 
     public function deleteToken(string $token): void
     {
-        $stmt = $this->db->prepare(
-            'DELETE FROM auth_tokens WHERE token = :token'
-        );
-        $stmt->execute(['token' => $token]);
+        $expirySeconds = (int) $this->config::get('auth.auth_token_expiry', 604800);
+        
+        // Find the token by verifying it against all non-expired tokens
+        $rows = $this->authTokenDao->findAllNonExpired($expirySeconds);
+
+        foreach ($rows as $row) {
+            if (password_verify($token, $row['token'])) {
+                // Found the token, delete it
+                $this->authTokenDao->deleteById($row['auth_token_id']);
+                return;
+            }
+        }
     }
 }
 

@@ -1,0 +1,82 @@
+{% extends "layout.twig" %}
+
+{% block title %}{% if property %}Edit{% else %}Add{% endif %} Property | Admin{% endblock %}
+
+{% block content %}
+  <section class="py-5">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+              <h1 class="h3 mb-4">{% if property %}Edit{% else %}Add{% endif %} Property</h1>
+
+              {% if error %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                  {{ error }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+              {% endif %}
+
+              <form method="post" action="{% if property %}/admin/properties/{{ property.property_id }}{% else %}/admin/properties{% endif %}">
+                <div class="mb-3">
+                  <label class="form-label" for="property_name">Property Name *</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="property_name"
+                    name="property_name"
+                    value="{{ property.property_name ?? '' }}"
+                    required
+                    maxlength="200"
+                  >
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label" for="timezone">Timezone *</label>
+                  <select
+                    class="form-select"
+                    id="timezone"
+                    name="timezone"
+                    required
+                  >
+                    {% set currentTimezone = property.timezone ?? 'UTC' %}
+                    {% for region, cities in timezones %}
+                      <optgroup label="{{ region }}">
+                        {% for tz, label in cities %}
+                          <option value="{{ tz }}" {% if tz == currentTimezone %}selected{% endif %}>
+                            {{ label }} ({{ tz }})
+                          </option>
+                        {% endfor %}
+                      </optgroup>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                {% if property %}
+                  <div class="mb-3">
+                    <label class="form-label">Export GUID</label>
+                    <input type="text" class="form-control" value="{{ property.calendar_export_guid }}" disabled>
+                    <div class="form-text">Export GUID is automatically generated and cannot be changed</div>
+                  </div>
+                {% endif %}
+
+                <div class="d-flex gap-2">
+                  <button type="submit" class="btn btn-primary">{% if property %}Update{% else %}Create{% endif %} Property</button>
+                  <a href="/admin/properties" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <a href="/admin/properties" class="text-decoration-none">← Back to Properties</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+
+

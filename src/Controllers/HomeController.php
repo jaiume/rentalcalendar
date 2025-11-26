@@ -33,8 +33,15 @@ class HomeController
     {
         $user = $request->getAttribute('user');
 
+        // Get all sync partner bar colors dynamically from config
+        $syncPartnerBarColors = $this->config::getSyncPartnerBarColors();
+
         return $this->view->render($response, 'dashboard.twig', [
             'user' => $user,
+            'maintenance_color' => $this->config::get('colors.maintenance_color', '#FF8800'),
+            'cleaning_color' => $this->config::get('colors.cleaning_color', '#0088FF'),
+            'reservation_color' => $this->config::get('colors.reservation_color', '#0d6efd'),
+            'sync_partner_bar_colors' => $syncPartnerBarColors,
         ]);
     }
 }

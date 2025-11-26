@@ -1,0 +1,88 @@
+{% extends "layout.twig" %}
+
+{% block title %}{% if user %}Edit{% else %}Add{% endif %} User | Admin{% endblock %}
+
+{% block content %}
+  <section class="py-5">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+              <h1 class="h3 mb-4">{% if user %}Edit{% else %}Add{% endif %} User</h1>
+
+              {% if error %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                  {{ error }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+              {% endif %}
+
+              <form method="post" action="{% if user %}/admin/users/{{ user.user_id }}{% else %}/admin/users{% endif %}">
+                {% if user %}
+                  <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-control" value="{{ user.emailaddress }}" disabled>
+                    <div class="form-text">Email cannot be changed</div>
+                  </div>
+                {% else %}
+                  <div class="mb-3">
+                    <label class="form-label" for="email">Email Address *</label>
+                    <input
+                      type="email"
+                      class="form-control"
+                      id="email"
+                      name="email"
+                      required
+                      maxlength="255"
+                    >
+                  </div>
+                {% endif %}
+
+                <div class="mb-3">
+                  <label class="form-label" for="display_name">Display Name</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="display_name"
+                    name="display_name"
+                    value="{{ user.display_name ?? '' }}"
+                    maxlength="120"
+                  >
+                </div>
+
+                <div class="mb-3">
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      id="is_admin"
+                      name="is_admin"
+                      value="1"
+                      {% if user and user.is_admin %}checked{% endif %}
+                    >
+                    <label class="form-check-label" for="is_admin">
+                      Administrator
+                    </label>
+                  </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                  <button type="submit" class="btn btn-primary">{% if user %}Update{% else %}Create{% endif %} User</button>
+                  <a href="/admin/users" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <a href="/admin/users" class="text-decoration-none">← Back to Users</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+
+

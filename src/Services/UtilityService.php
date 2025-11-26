@@ -27,6 +27,15 @@ class UtilityService
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port = $this->config::get('mail.smtp_port');
 
+            // Allow self-signed certificates
+            $mail->SMTPOptions = [
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => true,
+                ],
+            ];
+
             $mail->setFrom(
                 $this->config::get('mail.from_email'),
                 $this->config::get('mail.from_name')

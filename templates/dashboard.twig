@@ -3,41 +3,2151 @@
 {% block title %}Dashboard | Rental Calendar{% endblock %}
 
 {% block content %}
-  <section class="py-5">
-    <div class="container">
-      <div class="row g-4">
+<section class="py-4">
+  <div class="container-fluid">
+    <!-- Dashboard Header -->
+    <div class="row mb-3">
         <div class="col-12">
           <div class="card border-0 shadow-sm">
-            <div class="card-body">
-              <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
-                <div>
-                  <p class="text-muted mb-1">Welcome back</p>
-                  <h2 class="h4 mb-0">{{ user.name ?? 'User' }}</h2>
-                  <small class="text-muted">{{ user.email ?? '' }}</small>
+            <div class="card-body py-2">
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <!-- View Switcher -->
+                <div class="btn-group" role="group">
+                  <input type="radio" class="btn-check" name="viewType" id="radioViewMulti" value="multi" checked>
+                  <label class="btn btn-outline-primary" for="radioViewMulti">Multi Property</label>
+                  
+                  <input type="radio" class="btn-check" name="viewType" id="radioViewSingle" value="single">
+                  <label class="btn btn-outline-primary" for="radioViewSingle">Single Property</label>
+                  
+                  <input type="radio" class="btn-check" name="viewType" id="radioViewList" value="list">
+                  <label class="btn btn-outline-primary" for="radioViewList">List View</label>
                 </div>
-                <a href="/logout" class="btn btn-outline-danger mt-3 mt-md-0">Logout</a>
+                
+                <!-- Property Selector (for Single Property views) -->
+                <select id="propertySelector" class="form-select" style="max-width: 250px; display: none;">
+                  <option value="">Select Property...</option>
+                </select>
+                
+                <!-- Sync Button -->
+                <button class="btn btn-outline-success" id="syncCalendarBtn" title="Sync calendar from external sources">
+                  <span id="syncIcon">🔄</span> Sync Calendar
+                </button>
               </div>
             </div>
           </div>
         </div>
-        <div class="col-md-6">
-          <div class="card border-0 shadow-sm h-100">
-            <div class="card-body">
-              <h5 class="card-title">Upcoming reservations</h5>
-              <p class="text-muted mb-0">Connect your data source to show live bookings.</p>
+            </div>
+            
+    <!-- Sync Progress Modal -->
+    <div class="modal fade" id="syncProgressModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Syncing Calendar</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="syncCloseBtn" style="display: none;"></button>
+          </div>
+          <div class="modal-body">
+            <div id="syncProgressMessage" class="mb-3">Starting sync...</div>
+            <div class="progress mb-3" style="height: 25px;">
+              <div id="syncProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                   role="progressbar" style="width: 0%">0%</div>
+            </div>
+            <div id="syncProgressDetails" class="small text-muted"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Multi Property Calendar View -->
+    <div id="viewMultiCalendar" class="dashboard-view">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Multi Property Calendar</h5>
+            <div class="d-flex gap-2 align-items-center">
+              <button class="btn btn-sm btn-outline-secondary" id="prevMonthMulti">← Prev</button>
+              <span id="currentMonthMulti" class="fw-bold"></span>
+              <button class="btn btn-sm btn-outline-secondary" id="nextMonthMulti">Next →</button>
+          </div>
+        </div>
+        </div>
+        <div class="card-body p-0">
+          <div id="multiCalendarContainer" style="overflow-x: auto; overflow-y: visible;">
+            <table class="table table-bordered mb-0" id="multiCalendarTable" style="position: relative;">
+              <thead id="multiCalendarHeader"></thead>
+              <tbody id="multiCalendarBody" style="position: relative;"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Single Property Calendar View -->
+    <div id="viewSingleCalendar" class="dashboard-view" style="display: none;">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Single Property Calendar</h5>
+            <div class="d-flex gap-2 align-items-center">
+              <button class="btn btn-sm btn-outline-secondary" id="prevMonthSingle">← Prev</button>
+              <span id="currentMonthSingle" class="fw-bold"></span>
+              <button class="btn btn-sm btn-outline-secondary" id="nextMonthSingle">Next →</button>
             </div>
           </div>
         </div>
-        <div class="col-md-6">
-          <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-0">
+          <div id="singleCalendarContainer" style="overflow-x: auto;">
+            <div id="singleCalendarGrid" class="calendar-grid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Single Property List View -->
+    <div id="viewList" class="dashboard-view" style="display: none;">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Event List</h5>
+        </div>
             <div class="card-body">
-              <h5 class="card-title">Team availability</h5>
-              <p class="text-muted mb-0">Use Twig partials to reuse this component across devices.</p>
+          <div id="eventListContainer" style="max-height: 70vh; overflow-y: auto; min-height: 200px;">
+            <div id="eventListContent">
+              <p class="text-muted text-center py-4">Loading events...</p>
             </div>
+          </div>
+          <div class="mt-4 pt-3 border-top">
+            <button class="btn btn-primary" id="addEventBtn">Add Event</button>
           </div>
         </div>
       </div>
     </div>
   </section>
+
+<!-- Event Creation Modal -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="eventModalTitle">Create Event</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="eventForm">
+          <input type="hidden" id="eventType" name="event_type">
+          <input type="hidden" id="eventPropertyId" name="property_id">
+          <input type="hidden" id="eventStartDate" name="start_date">
+          <input type="hidden" id="eventEndDate" name="end_date">
+          <input type="hidden" id="eventId" name="event_id">
+          
+          <!-- Reservation Fields -->
+          <div id="reservationFields" style="display: none;">
+            <div id="syncPartnerNotice" class="alert alert-info" style="display: none;">
+              <small><i class="bi bi-info-circle"></i> This reservation is synced from <strong id="syncPartnerName"></strong> and cannot be edited or deleted.</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Reservation Name *</label>
+              <input type="text" class="form-control" id="reservationName" name="name" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Description</label>
+              <textarea class="form-control" id="reservationDescription" name="description" rows="3"></textarea>
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Start Time</label>
+                <select class="form-select" id="reservationStartTime" name="start_time">
+                  <option value="standard">Standard (3:00 PM)</option>
+                  <option value="early">Early (6:00 AM)</option>
+                </select>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">End Time</label>
+                <select class="form-select" id="reservationEndTime" name="end_time">
+                  <option value="standard">Standard (12:00 PM)</option>
+                  <option value="late">Late (10:00 PM)</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Status</label>
+              <select class="form-select" id="reservationStatus" name="status">
+                <option value="confirmed">Confirmed</option>
+                <option value="pending">Pending</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Cleaning Fields -->
+          <div id="cleaningFields" style="display: none;">
+            <div class="mb-3">
+              <label class="form-label">Cleaner</label>
+              <select class="form-select" id="cleaningCleanerId" name="cleaner_id">
+                <option value="">No cleaner assigned</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Window</label>
+              <select class="form-select" id="cleaningWindow" name="window">
+                <option value="">Full Day</option>
+                <option value="am">AM</option>
+                <option value="pm">PM</option>
+                <option value="full_day">Full Day</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Notes</label>
+              <textarea class="form-control" id="cleaningNotes" name="notes" rows="3"></textarea>
+            </div>
+          </div>
+
+          <!-- Maintenance Fields -->
+          <div id="maintenanceFields" style="display: none;">
+            <div class="mb-3">
+              <label class="form-label">Description *</label>
+              <textarea class="form-control" id="maintenanceDescription" name="description" rows="3" required></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Type</label>
+              <input type="text" class="form-control" id="maintenanceType" name="type" placeholder="e.g., Repair, Inspection">
+            </div>
+          </div>
+
+          <!-- Date Range Display -->
+          <div class="mb-3">
+            <label class="form-label">Date Range</label>
+            <div class="form-control bg-light" id="dateRangeDisplay"></div>
+          </div>
+        </form>
+      </div>
+          <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="deleteEventBtn" style="display: none;">Delete</button>
+        <button type="button" class="btn btn-primary" id="saveEventBtn">Save Event</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Event Type Selector Modal -->
+<div class="modal fade" id="eventTypeModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Select Event Type</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-grid gap-2">
+          <button class="btn text-white" style="background-color: {{ reservation_color }};" onclick="dashboard.selectEventType('reservation')">Reservation</button>
+          <button class="btn text-white" style="background-color: {{ cleaning_color }};" onclick="dashboard.selectEventType('cleaning')">Cleaning</button>
+          <button class="btn text-white" style="background-color: {{ maintenance_color }};" onclick="dashboard.selectEventType('maintenance')">Maintenance</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.dashboard-view {
+  min-height: 500px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: #dee2e6;
+  border: 1px solid #dee2e6;
+  position: relative;
+  overflow: visible;
+}
+
+.calendar-day {
+  background: white;
+  min-height: 120px;
+  padding: 0;
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.calendar-day:hover {
+  background: #f8f9fa;
+}
+
+.calendar-day.other-month {
+  background: #f8f9fa;
+  color: #6c757d;
+}
+
+.calendar-day-number {
+  font-weight: bold;
+  padding: 4px 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.calendar-day-row {
+  flex: 1;
+  min-height: 20px;
+  padding: 2px 0;
+  position: relative;
+  border-bottom: 1px solid #f0f0f0;
+  overflow: visible;
+}
+
+.calendar-day-row:last-child {
+  border-bottom: none;
+}
+
+.calendar-event-span {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  padding: 2px 4px;
+  font-size: 0.7rem;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  z-index: 10;
+}
+
+.event-bar {
+  width: 100%;
+  padding: 2px 6px;
+  margin: 2px 0;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  display: block;
+}
+
+.event-reservation {
+  background: {{ reservation_color }};
+  color: white;
+}
+
+.event-cleaning {
+  background: {{ cleaning_color }};
+  color: white;
+  width: 100%;
+  display: block;
+  text-align: center;
+  padding: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-maintenance {
+  background: {{ maintenance_color }};
+  color: white;
+}
+
+.multi-calendar-row {
+  position: relative;
+  overflow: visible;
+}
+
+.multi-calendar-property {
+  font-weight: bold;
+  background: #f8f9fa;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  min-width: 200px;
+  padding: 8px;
+  border-right: 2px solid #dee2e6;
+}
+
+.multi-calendar-cell {
+  min-width: 40px;
+  width: 40px;
+  min-height: 60px;
+  text-align: center;
+  padding: 0;
+  position: relative;
+  cursor: pointer;
+  vertical-align: top;
+  overflow: visible;
+}
+
+.multi-calendar-cell-row {
+  min-height: 20px;
+  padding: 2px 0;
+  position: relative;
+  border-bottom: 1px solid #f0f0f0;
+  overflow: visible;
+}
+
+.multi-calendar-cell-row:last-child {
+  border-bottom: none;
+}
+
+.multi-calendar-event-span {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  padding: 2px 4px;
+  font-size: 0.7rem;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  z-index: 10;
+}
+
+.multi-calendar-cell:hover {
+  background: #f8f9fa;
+}
+
+.multi-calendar-event {
+  width: 100%;
+  padding: 2px 4px;
+  font-size: 0.7rem;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+#eventListContent {
+  min-height: 100px;
+}
+
+.event-list-item {
+  padding: 12px;
+  border-bottom: 1px solid #dee2e6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  width: 100%;
+}
+
+.event-list-item:hover {
+  background: #f8f9fa;
+}
+
+.event-list-date {
+  font-weight: bold;
+  min-width: 200px;
+  color: #212529;
+}
+
+.event-list-type {
+  flex: 0 0 auto;
+  margin: 0 16px;
+}
+
+.event-list-description {
+  color: #6c757d;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.dragging {
+  opacity: 0.5;
+}
+
+.cell-selected {
+  background-color: #e3f2fd !important;
+  border: 2px solid #2196f3 !important;
+}
+
+.day-selected {
+  background-color: #e3f2fd !important;
+  border: 2px solid #2196f3 !important;
+}
+</style>
+
+<script>
+// Color configuration from config.ini
+const MAINTENANCE_COLOR = '{{ maintenance_color }}';
+const CLEANING_COLOR = '{{ cleaning_color }}';
+const RESERVATION_COLOR = '{{ reservation_color }}';
+const SYNC_PARTNER_BAR_COLORS = {{ sync_partner_bar_colors|json_encode|raw }};
+
+class Dashboard {
+  constructor() {
+    this.currentView = 'multi';
+    this.currentDate = new Date();
+    this.selectedPropertyId = null;
+    this.properties = [];
+    this.events = { reservations: [], cleaning: [], maintenance: [] };
+    this.cleaners = [];
+    this.dragStart = null;
+    this.dragEnd = null;
+    this.documentMouseUpHandler = null;
+    
+    this.init();
+  }
+
+  async init() {
+    await this.loadProperties();
+    await this.loadCleaners();
+    this.setupEventListeners();
+    this.loadView();
+  }
+
+  async loadProperties() {
+    try {
+      const response = await fetch('/api/dashboard/properties');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      this.properties = data.properties || [];
+      this.populatePropertySelector();
+      console.log('Loaded properties:', this.properties.length);
+    } catch (error) {
+      console.error('Failed to load properties:', error);
+      this.properties = [];
+    }
+  }
+
+  async loadCleaners() {
+    try {
+      const response = await fetch('/api/dashboard/cleaners');
+      const data = await response.json();
+      this.cleaners = data.cleaners;
+      this.populateCleanerSelector();
+    } catch (error) {
+      console.error('Failed to load cleaners:', error);
+    }
+  }
+
+  async loadEvents(startDate, endDate, propertyId = null) {
+    try {
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+      });
+      if (propertyId) {
+        params.append('property_id', propertyId);
+      }
+      
+      const response = await fetch(`/api/dashboard/events?${params}`);
+      const data = await response.json();
+      this.events = data;
+      // Don't call renderCurrentView here - it will be called explicitly when needed
+    } catch (error) {
+      console.error('Failed to load events:', error);
+    }
+  }
+
+  populatePropertySelector() {
+    const selector = document.getElementById('propertySelector');
+    if (!selector) {
+      console.error('propertySelector element not found in populatePropertySelector');
+      return;
+    }
+    selector.innerHTML = '<option value="">Select Property...</option>';
+    this.properties.forEach(prop => {
+      const option = document.createElement('option');
+      option.value = prop.property_id;
+      option.textContent = prop.property_name;
+      selector.appendChild(option);
+    });
+  }
+
+  populateCleanerSelector() {
+    const selector = document.getElementById('cleaningCleanerId');
+    selector.innerHTML = '<option value="">No cleaner assigned</option>';
+    this.cleaners.forEach(cleaner => {
+      const option = document.createElement('option');
+      option.value = cleaner.cleaner_id;
+      option.textContent = `${cleaner.cleaner_name} (${cleaner.cleaner_initials})`;
+      selector.appendChild(option);
+    });
+  }
+
+  setupEventListeners() {
+    // View switcher
+    document.querySelectorAll('input[name="viewType"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        this.currentView = e.target.value;
+        this.loadView();
+      });
+    });
+
+    // Property selector
+    document.getElementById('propertySelector').addEventListener('change', (e) => {
+      this.selectedPropertyId = e.target.value || null;
+      this.loadView();
+    });
+
+    // Month navigation
+    document.getElementById('prevMonthMulti')?.addEventListener('click', () => this.changeMonth(-1));
+    document.getElementById('nextMonthMulti')?.addEventListener('click', () => this.changeMonth(1));
+    document.getElementById('prevMonthSingle')?.addEventListener('click', () => this.changeMonth(-1));
+    document.getElementById('nextMonthSingle')?.addEventListener('click', () => this.changeMonth(1));
+
+    // Event modal
+    document.getElementById('saveEventBtn').addEventListener('click', () => this.saveEvent());
+    document.getElementById('deleteEventBtn').addEventListener('click', () => this.deleteEvent());
+    
+    // Add event button for list view
+    document.getElementById('addEventBtn')?.addEventListener('click', () => {
+      if (!this.selectedPropertyId) {
+        alert('Please select a property first');
+        return;
+      }
+      const today = new Date().toISOString().split('T')[0];
+      this.openEventModal('reservation', this.selectedPropertyId, today, today);
+    });
+  }
+
+
+  async loadView() {
+    // Hide all views
+    document.querySelectorAll('.dashboard-view').forEach(view => {
+      view.style.display = 'none';
+    });
+
+    // Show property selector for single property views
+    const propertySelector = document.getElementById('propertySelector');
+    if (propertySelector) {
+      if (this.currentView === 'single' || this.currentView === 'list') {
+        propertySelector.style.display = 'block';
+        if (!this.selectedPropertyId && this.properties.length > 0) {
+          this.selectedPropertyId = this.properties[0].property_id;
+          propertySelector.value = this.selectedPropertyId;
+        }
+      } else {
+        propertySelector.style.display = 'none';
+        this.selectedPropertyId = null;
+      }
+    } else {
+      console.error('propertySelector element not found');
+    }
+
+    // Set month name for calendar views
+    const monthName = this.currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const monthMultiElement = document.getElementById('currentMonthMulti');
+    if (monthMultiElement) {
+      monthMultiElement.textContent = monthName;
+    }
+    const monthSingleElement = document.getElementById('currentMonthSingle');
+    if (monthSingleElement) {
+      monthSingleElement.textContent = monthName;
+    }
+
+    // Show appropriate view
+    if (this.currentView === 'multi') {
+      document.getElementById('viewMultiCalendar').style.display = 'block';
+      await this.renderMultiCalendar();
+    } else if (this.currentView === 'single') {
+      document.getElementById('viewSingleCalendar').style.display = 'block';
+      await this.renderSingleCalendar();
+    } else if (this.currentView === 'list') {
+      document.getElementById('viewList').style.display = 'block';
+      await this.renderListView();
+    }
+  }
+
+  changeMonth(delta) {
+    this.currentDate.setMonth(this.currentDate.getMonth() + delta);
+    this.loadView();
+  }
+
+  getMonthStart() {
+    return new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
+  }
+
+  getMonthEnd() {
+    return new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0);
+  }
+
+  getDateRange() {
+    const start = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
+    const end = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 2, 0);
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0]
+    };
+  }
+
+  async renderMultiCalendar() {
+    // Wait for properties to load if they haven't yet
+    if (this.properties.length === 0) {
+      await this.loadProperties();
+    }
+
+    const range = this.getDateRange();
+    await this.loadEvents(range.start, range.end);
+
+    const monthName = this.currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const monthElement = document.getElementById('currentMonthMulti');
+    if (monthElement) {
+      monthElement.textContent = monthName;
+    } else {
+      console.error('currentMonthMulti element not found');
+    }
+
+    // Get days in month
+    const daysInMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0).getDate();
+
+    // Build header - use a single string to avoid multiple innerHTML assignments
+    const header = document.getElementById('multiCalendarHeader');
+    let headerHtml = '<tr><th class="multi-calendar-property">Property</th>';
+    for (let i = 0; i < daysInMonth; i++) {
+      const day = i + 1;
+      headerHtml += `<th class="multi-calendar-cell">${day}</th>`;
+    }
+    headerHtml += '</tr>';
+    header.innerHTML = headerHtml;
+
+    // Build body
+    const body = document.getElementById('multiCalendarBody');
+    body.innerHTML = '';
+    
+    const propsToShow = this.selectedPropertyId 
+      ? this.properties.filter(p => p.property_id == this.selectedPropertyId)
+      : this.properties;
+
+    if (propsToShow.length === 0) {
+      body.innerHTML = '<tr><td colspan="' + (daysInMonth + 1) + '" class="text-center text-muted py-4">No properties available. Please ensure you have access to at least one property.</td></tr>';
+      return;
+    }
+
+    console.log('Rendering calendar for', propsToShow.length, 'properties');
+
+    propsToShow.forEach(property => {
+      const row = document.createElement('tr');
+      row.className = 'multi-calendar-row';
+      row.innerHTML = `<td class="multi-calendar-property">${property.property_name}</td>`;
+      
+      const cells = [];
+      for (let i = 0; i < daysInMonth; i++) {
+        const day = i + 1;
+        const date = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), day);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const cell = document.createElement('td');
+        cell.className = 'multi-calendar-cell';
+        cell.dataset.propertyId = property.property_id;
+        cell.dataset.date = dateStr;
+        cell.dataset.dayIndex = i;
+        
+        // Create 3 rows: Reservation (top), Cleaning (middle), Maintenance (bottom)
+        const reservationRow = document.createElement('div');
+        reservationRow.className = 'multi-calendar-cell-row';
+        reservationRow.dataset.rowType = 'reservation';
+        
+        const cleaningRow = document.createElement('div');
+        cleaningRow.className = 'multi-calendar-cell-row';
+        cleaningRow.dataset.rowType = 'cleaning';
+        
+        const maintenanceRow = document.createElement('div');
+        maintenanceRow.className = 'multi-calendar-cell-row';
+        maintenanceRow.dataset.rowType = 'maintenance';
+        
+        cell.appendChild(reservationRow);
+        cell.appendChild(cleaningRow);
+        cell.appendChild(maintenanceRow);
+        
+        // Add click/drag handlers
+        this.addCellInteractionHandlers(cell, property.property_id, dateStr);
+        
+        cells.push(cell);
+        row.appendChild(cell);
+      }
+      
+      body.appendChild(row);
+      
+      // Render events after all cells are created (needed for spanning events)
+      // Use setTimeout to ensure DOM is fully rendered before calculating positions
+      setTimeout(() => {
+        cells.forEach((cell, index) => {
+          const dateStr = cell.dataset.date;
+          this.renderEventsInCell(cell, property.property_id, dateStr, cells, index);
+        });
+      }, 0);
+    });
+  }
+
+  async renderSingleCalendar() {
+    if (!this.selectedPropertyId) return;
+
+    // Wait for properties to load if they haven't yet
+    if (this.properties.length === 0) {
+      await this.loadProperties();
+    }
+
+    const range = this.getDateRange();
+    await this.loadEvents(range.start, range.end, this.selectedPropertyId);
+
+    const monthName = this.currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const monthElement = document.getElementById('currentMonthSingle');
+    if (monthElement) {
+      monthElement.textContent = monthName;
+    } else {
+      console.error('currentMonthSingle element not found');
+    }
+
+    const container = document.getElementById('singleCalendarGrid');
+    container.innerHTML = '';
+
+    // Day names header
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayNames.forEach(day => {
+      const header = document.createElement('div');
+      header.className = 'calendar-day';
+      header.style.background = '#f8f9fa';
+      header.style.fontWeight = 'bold';
+      header.style.textAlign = 'center';
+      header.style.padding = '8px';
+      header.style.minHeight = 'auto';
+      header.textContent = day;
+      container.appendChild(header);
+    });
+
+    // Get first day of month
+    const firstDay = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
+    const lastDay = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+    // Build calendar days
+    const dayDivs = [];
+    for (let i = 0; i < 42; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayDiv = document.createElement('div');
+      dayDiv.className = 'calendar-day';
+      if (date.getMonth() !== this.currentDate.getMonth()) {
+        dayDiv.classList.add('other-month');
+      }
+      
+      dayDiv.innerHTML = `<div class="calendar-day-number">${date.getDate()}</div>`;
+      dayDiv.dataset.date = dateStr;
+      dayDiv.dataset.dayIndex = i;
+      
+      // Create 3 rows: Reservation (top), Cleaning (middle), Maintenance (bottom)
+      const reservationRow = document.createElement('div');
+      reservationRow.className = 'calendar-day-row';
+      reservationRow.dataset.rowType = 'reservation';
+      
+      const cleaningRow = document.createElement('div');
+      cleaningRow.className = 'calendar-day-row';
+      cleaningRow.dataset.rowType = 'cleaning';
+      
+      const maintenanceRow = document.createElement('div');
+      maintenanceRow.className = 'calendar-day-row';
+      maintenanceRow.dataset.rowType = 'maintenance';
+      
+      dayDiv.appendChild(reservationRow);
+      dayDiv.appendChild(cleaningRow);
+      dayDiv.appendChild(maintenanceRow);
+      
+      // Add interaction handlers
+      this.addDayInteractionHandlers(dayDiv, this.selectedPropertyId, dateStr);
+      
+      dayDivs.push(dayDiv);
+      container.appendChild(dayDiv);
+    }
+    
+    // Render events after all days are created (needed for spanning events)
+    setTimeout(() => {
+      dayDivs.forEach((dayDiv, index) => {
+        const dateStr = dayDiv.dataset.date;
+        this.renderEventsInDay(dayDiv, this.selectedPropertyId, dateStr, dayDivs, index);
+      });
+    }, 0);
+  }
+
+  async renderListView() {
+    if (!this.selectedPropertyId) {
+      const container = document.getElementById('eventListContent');
+      container.innerHTML = '<p class="text-muted text-center py-4">Please select a property</p>';
+      return;
+    }
+
+    // Wait for properties to load if they haven't yet
+    if (this.properties.length === 0) {
+      await this.loadProperties();
+    }
+
+    const today = new Date();
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate()).toISOString().split('T')[0];
+    
+    await this.loadEvents(startDate, endDate, this.selectedPropertyId);
+    
+    const container = document.getElementById('eventListContent');
+    if (!container) {
+      console.error('eventListContent container not found');
+      return;
+    }
+    
+    // Check if the view is visible
+    const viewList = document.getElementById('viewList');
+    if (viewList && viewList.style.display === 'none') {
+      console.warn('viewList is hidden, but attempting to render');
+    }
+    
+    console.log('Container found:', container, 'Container parent:', container.parentElement);
+    console.log('Container computed style:', window.getComputedStyle(container));
+    
+    container.innerHTML = '';
+
+    // Ensure events object is initialized
+    if (!this.events) {
+      this.events = { reservations: [], cleaning: [], maintenance: [] };
+    }
+    if (!this.events.reservations) this.events.reservations = [];
+    if (!this.events.cleaning) this.events.cleaning = [];
+    if (!this.events.maintenance) this.events.maintenance = [];
+
+    console.log('Rendering list view with events:', this.events);
+    console.log('Reservations:', this.events.reservations.length);
+    console.log('Cleaning:', this.events.cleaning.length);
+    console.log('Maintenance:', this.events.maintenance.length);
+
+    // Combine all events and sort by date
+    const allEvents = [];
+    
+    if (this.events.reservations && this.events.reservations.length > 0) {
+      this.events.reservations.forEach(r => {
+      allEvents.push({
+        type: 'reservation',
+        date: r.reservation_start_date,
+        endDate: r.reservation_end_date,
+        data: r
+        });
+      });
+    }
+    
+    if (this.events.cleaning) {
+      this.events.cleaning.forEach(c => {
+      allEvents.push({
+        type: 'cleaning',
+        date: c.cleaning_date,
+        endDate: c.cleaning_date,
+        data: c
+        });
+      });
+    }
+    
+    if (this.events.maintenance) {
+      this.events.maintenance.forEach(m => {
+      allEvents.push({
+        type: 'maintenance',
+        date: m.maintenance_start_date,
+        endDate: m.maintenance_end_date,
+          data: m
+        });
+      });
+    }
+
+    // Sort by date
+    allEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Filter to current and future events (including events that end today or later)
+    today.setHours(0, 0, 0, 0);
+    const futureEvents = allEvents.filter(e => {
+      const endDate = new Date(e.endDate);
+      endDate.setHours(0, 0, 0, 0);
+      return endDate >= today;
+    });
+    
+    if (futureEvents.length === 0) {
+      container.innerHTML = '<p class="text-muted text-center py-4">No upcoming events</p>';
+      return;
+    }
+
+    // Build HTML string
+    let htmlContent = '';
+    
+    futureEvents.forEach((event, index) => {
+      const startDate = new Date(event.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      
+      const endDate = new Date(event.endDate).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      
+      // Show date range: if same date, show once; if different, show range
+      const dateStr = startDate === endDate ? startDate : `${startDate} - ${endDate}`;
+      
+      let description = '';
+      let typeLabel = '';
+      let badgeColor = '';
+      let badgeHtml = '';
+      
+      if (event.type === 'reservation') {
+        description = event.data.reservation_name || 'Reservation';
+        if (event.data.reservation_description) {
+          description += ` - ${event.data.reservation_description}`;
+        }
+        
+        // For sync partner reservations, show only the partner badge
+        if (event.data.sync_partner_name && SYNC_PARTNER_BAR_COLORS[event.data.sync_partner_name]) {
+          const partnerColor = SYNC_PARTNER_BAR_COLORS[event.data.sync_partner_name];
+          badgeHtml = `<span class="badge" style="background-color: ${partnerColor}; color: white;">${event.data.sync_partner_name}</span>`;
+        } else {
+          // For internal reservations, show the reservation badge
+          typeLabel = 'Reservation';
+          badgeColor = RESERVATION_COLOR;
+          badgeHtml = `<span class="badge" style="background-color: ${badgeColor}; color: white;">${typeLabel}</span>`;
+        }
+      } else if (event.type === 'cleaning') {
+        typeLabel = 'Cleaning';
+        badgeColor = CLEANING_COLOR;
+        badgeHtml = `<span class="badge" style="background-color: ${badgeColor}; color: white;">${typeLabel}</span>`;
+        description = event.data.cleaner_initials || 'No cleaner assigned';
+        if (event.data.cleaning_window) {
+          description += ` (${event.data.cleaning_window})`;
+        }
+      } else if (event.type === 'maintenance') {
+        typeLabel = 'Maintenance';
+        badgeColor = MAINTENANCE_COLOR;
+        badgeHtml = `<span class="badge" style="background-color: ${badgeColor}; color: white;">${typeLabel}</span>`;
+        description = event.data.maintenance_description || 'Maintenance';
+        if (event.data.maintenance_type) {
+          description += ` (${event.data.maintenance_type})`;
+        }
+      }
+      
+      htmlContent += `
+        <div class="event-list-item" data-event-type="${event.type}" data-event-id="${event.data.reservation_id || event.data.property_cleaning_id || event.data.property_maintenance_id}" style="cursor: pointer;">
+          <div class="event-list-date">${dateStr}</div>
+          <div class="event-list-type">
+            ${badgeHtml}
+          </div>
+          <div class="event-list-description">${description}</div>
+        </div>
+      `;
+    });
+    
+    container.innerHTML = htmlContent;
+    
+    // Add click handlers after rendering
+    container.querySelectorAll('.event-list-item').forEach((item, index) => {
+      item.addEventListener('click', () => {
+        const event = futureEvents[index];
+        this.editEvent(event.type, event.data);
+      });
+    });
+  }
+
+  renderEventsInCell(cell, propertyId, dateStr, allCells, dayIndex) {
+    const reservationRow = cell.querySelector('[data-row-type="reservation"]');
+    const cleaningRow = cell.querySelector('[data-row-type="cleaning"]');
+    const maintenanceRow = cell.querySelector('[data-row-type="maintenance"]');
+    
+    // Track which events have been rendered to avoid duplicates
+    const renderedEvents = new Set();
+    
+    // Reservations - top row (multi-day events span across cells)
+    this.events.reservations
+      .filter(r => r.property_id == propertyId && 
+                   dateStr >= r.reservation_start_date && 
+                   dateStr <= r.reservation_end_date &&
+                   !renderedEvents.has(`reservation-${r.reservation_id}-${dateStr}`))
+      .forEach(r => {
+        renderedEvents.add(`reservation-${r.reservation_id}-${dateStr}`);
+        
+        // Check if this is a multi-day event
+        const isMultiDay = r.reservation_start_date !== r.reservation_end_date;
+        const isStartDay = dateStr === r.reservation_start_date;
+        
+        if (isMultiDay && isStartDay) {
+          // Find the end cell for this reservation
+          let endCellIndex = dayIndex;
+          for (let i = dayIndex; i < allCells.length; i++) {
+            const cellDateStr = allCells[i].dataset.date;
+            if (cellDateStr <= r.reservation_end_date) {
+              endCellIndex = i;
+            } else {
+              break;
+            }
+          }
+          
+          const startCell = allCells[dayIndex];
+          const endCell = allCells[endCellIndex];
+          
+          const event = document.createElement('div');
+          event.className = 'multi-calendar-event-span event-reservation';
+          event.textContent = r.reservation_name || r.reservation_description || 'Reservation';
+          event.dataset.eventType = 'reservation';
+          event.dataset.eventId = r.reservation_id;
+          event.dataset.propertyId = propertyId;
+          event.dataset.startDate = r.reservation_start_date;
+          event.dataset.endDate = r.reservation_end_date;
+          event.style.cursor = 'pointer';
+          
+          // Calculate width using actual cell positions
+          setTimeout(() => {
+            const startRect = startCell.getBoundingClientRect();
+            const endRect = endCell.getBoundingClientRect();
+            const rowRect = reservationRow.getBoundingClientRect();
+            
+            const width = endRect.right - startRect.left;
+            const leftOffset = startRect.left - rowRect.left;
+            
+            event.style.left = `${leftOffset}px`;
+            event.style.width = `${width}px`;
+          }, 0);
+          
+          // Set initial width as fallback
+          const spanCells = endCellIndex - dayIndex + 1;
+          const cellWidth = startCell.offsetWidth || 40;
+          event.style.left = '0px';
+          event.style.width = `${cellWidth * spanCells}px`;
+          event.style.borderRadius = '2px';
+          
+          // Use sync partner bar color from config if available, otherwise use reservation color
+          if (r.sync_partner_name && SYNC_PARTNER_BAR_COLORS[r.sync_partner_name]) {
+            event.style.background = SYNC_PARTNER_BAR_COLORS[r.sync_partner_name];
+          } else if (r.partner_color) {
+            event.style.background = r.partner_color;
+          } else {
+            event.style.background = RESERVATION_COLOR;
+          }
+          
+          event.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.editEvent('reservation', r);
+          });
+          
+          reservationRow.appendChild(event);
+          
+          // Mark subsequent cells to not render this event again
+          for (let i = dayIndex + 1; i <= endCellIndex && i < allCells.length; i++) {
+            const nextCell = allCells[i];
+            const nextDateStr = nextCell.dataset.date;
+            if (nextDateStr >= r.reservation_start_date && nextDateStr <= r.reservation_end_date) {
+              renderedEvents.add(`reservation-${r.reservation_id}-${nextDateStr}`);
+            }
+          }
+        } else if (!isMultiDay) {
+          // Single day event
+          const event = document.createElement('div');
+          event.className = 'multi-calendar-event event-reservation';
+          event.textContent = r.reservation_name || r.reservation_description || 'Reservation';
+          event.dataset.eventType = 'reservation';
+          event.dataset.eventId = r.reservation_id;
+          event.dataset.propertyId = propertyId;
+          event.dataset.startDate = r.reservation_start_date;
+          event.dataset.endDate = r.reservation_end_date;
+          event.style.cursor = 'pointer';
+          // Use sync partner bar color from config if available, otherwise use reservation color
+          if (r.sync_partner_name && SYNC_PARTNER_BAR_COLORS[r.sync_partner_name]) {
+            event.style.background = SYNC_PARTNER_BAR_COLORS[r.sync_partner_name];
+          } else if (r.partner_color) {
+            event.style.background = r.partner_color;
+          } else {
+            event.style.background = RESERVATION_COLOR;
+          }
+          event.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.editEvent('reservation', r);
+          });
+          reservationRow.appendChild(event);
+        }
+      });
+
+    // Cleaning - middle row (always single day)
+    this.events.cleaning
+      .filter(c => c.property_id == propertyId && c.cleaning_date === dateStr)
+      .forEach(c => {
+        const event = document.createElement('div');
+        event.className = 'multi-calendar-event event-cleaning';
+        event.textContent = c.cleaner_initials || 'C';
+        event.dataset.eventType = 'cleaning';
+        event.dataset.eventId = c.property_cleaning_id;
+        event.dataset.propertyId = propertyId;
+        event.dataset.date = c.cleaning_date;
+        event.style.cursor = 'pointer';
+        event.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.editEvent('cleaning', c);
+        });
+        cleaningRow.appendChild(event);
+      });
+
+    // Maintenance - bottom row (multi-day events span across cells)
+    this.events.maintenance
+      .filter(m => m.property_id == propertyId && 
+                   dateStr >= m.maintenance_start_date && 
+                   dateStr <= m.maintenance_end_date &&
+                   !renderedEvents.has(`maintenance-${m.property_maintenance_id}-${dateStr}`))
+      .forEach(m => {
+        renderedEvents.add(`maintenance-${m.property_maintenance_id}-${dateStr}`);
+        
+        // Check if this is a multi-day event
+        const isMultiDay = m.maintenance_start_date !== m.maintenance_end_date;
+        const isStartDay = dateStr === m.maintenance_start_date;
+        
+        if (isMultiDay && isStartDay) {
+          // Find the end cell for this maintenance
+          let endCellIndex = dayIndex;
+          for (let i = dayIndex; i < allCells.length; i++) {
+            const cellDateStr = allCells[i].dataset.date;
+            if (cellDateStr <= m.maintenance_end_date) {
+              endCellIndex = i;
+            } else {
+              break;
+            }
+          }
+          
+          const startCell = allCells[dayIndex];
+          const endCell = allCells[endCellIndex];
+          
+          const event = document.createElement('div');
+          event.className = 'multi-calendar-event-span event-maintenance';
+          event.textContent = m.maintenance_description.substring(0, 15) + '...';
+          event.dataset.eventType = 'maintenance';
+          event.dataset.eventId = m.property_maintenance_id;
+          event.dataset.propertyId = propertyId;
+          event.dataset.startDate = m.maintenance_start_date;
+          event.dataset.endDate = m.maintenance_end_date;
+          event.style.cursor = 'pointer';
+          
+          // Calculate width using actual cell positions
+          setTimeout(() => {
+            const startRect = startCell.getBoundingClientRect();
+            const endRect = endCell.getBoundingClientRect();
+            const rowRect = maintenanceRow.getBoundingClientRect();
+            
+            const width = endRect.right - startRect.left;
+            const leftOffset = startRect.left - rowRect.left;
+            
+            event.style.left = `${leftOffset}px`;
+            event.style.width = `${width}px`;
+          }, 0);
+          
+          // Set initial width as fallback
+          const spanCells = endCellIndex - dayIndex + 1;
+          const cellWidth = startCell.offsetWidth || 40;
+          event.style.left = '0px';
+          event.style.width = `${cellWidth * spanCells}px`;
+          event.style.borderRadius = '2px';
+          
+          event.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.editEvent('maintenance', m);
+          });
+          
+          maintenanceRow.appendChild(event);
+          
+          // Mark subsequent cells to not render this event again
+          for (let i = dayIndex + 1; i <= endCellIndex && i < allCells.length; i++) {
+            const nextCell = allCells[i];
+            const nextDateStr = nextCell.dataset.date;
+            if (nextDateStr >= m.maintenance_start_date && nextDateStr <= m.maintenance_end_date) {
+              renderedEvents.add(`maintenance-${m.property_maintenance_id}-${nextDateStr}`);
+            }
+          }
+        } else if (!isMultiDay) {
+          // Single day event
+          const event = document.createElement('div');
+          event.className = 'multi-calendar-event event-maintenance';
+          event.textContent = m.maintenance_description.substring(0, 15) + '...';
+          event.dataset.eventType = 'maintenance';
+          event.dataset.eventId = m.property_maintenance_id;
+          event.dataset.propertyId = propertyId;
+          event.dataset.startDate = m.maintenance_start_date;
+          event.dataset.endDate = m.maintenance_end_date;
+          event.style.cursor = 'pointer';
+          event.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.editEvent('maintenance', m);
+          });
+          maintenanceRow.appendChild(event);
+        }
+      });
+  }
+
+  renderEventsInDay(dayDiv, propertyId, dateStr, allDays, dayIndex) {
+    const reservationRow = dayDiv.querySelector('[data-row-type="reservation"]');
+    const cleaningRow = dayDiv.querySelector('[data-row-type="cleaning"]');
+    const maintenanceRow = dayDiv.querySelector('[data-row-type="maintenance"]');
+    
+    // Track which events have been rendered to avoid duplicates
+    const renderedEvents = new Set();
+    
+    // Reservations - top row (multi-day events span across days)
+    this.events.reservations
+      .filter(r => r.property_id == propertyId && 
+                   dateStr >= r.reservation_start_date && 
+                   dateStr <= r.reservation_end_date &&
+                   !renderedEvents.has(`reservation-${r.reservation_id}-${dateStr}`))
+      .forEach(r => {
+        renderedEvents.add(`reservation-${r.reservation_id}-${dateStr}`);
+        
+        // Check if this is a multi-day event
+        const isMultiDay = r.reservation_start_date !== r.reservation_end_date;
+        const isStartDay = dateStr === r.reservation_start_date;
+        
+        if (isMultiDay && isStartDay) {
+          // For multi-day events, render a segment for each row (week) the event spans
+          // Find all days that this reservation covers
+          const reservationDays = [];
+          for (let i = 0; i < allDays.length; i++) {
+            const dayDateStr = allDays[i].dataset.date;
+            if (dayDateStr >= r.reservation_start_date && dayDateStr <= r.reservation_end_date) {
+              reservationDays.push({ index: i, dayDiv: allDays[i], dateStr: dayDateStr });
+            }
+          }
+          
+          // Group days by row (each row has 7 days)
+          const rows = [];
+          reservationDays.forEach(day => {
+            const rowIndex = Math.floor(day.index / 7);
+            if (!rows[rowIndex]) {
+              rows[rowIndex] = [];
+            }
+            rows[rowIndex].push(day);
+          });
+          
+          // Determine which row contains the start date
+          const startDateRowIndex = reservationDays.find(day => day.dateStr === r.reservation_start_date);
+          const startRowIdx = startDateRowIndex ? Math.floor(startDateRowIndex.index / 7) : 0;
+          
+          // Render a segment for each row
+          rows.forEach((rowDays, rowIdx) => {
+            const firstDayInRow = rowDays[0];
+            const lastDayInRow = rowDays[rowDays.length - 1];
+            const firstDayDiv = firstDayInRow.dayDiv;
+            const lastDayDiv = lastDayInRow.dayDiv;
+            const reservationRow = firstDayDiv.querySelector('[data-row-type="reservation"]');
+            
+            if (!reservationRow) return;
+            
+            const event = document.createElement('div');
+            event.className = 'calendar-event-span event-reservation';
+            
+            // Set text content - show on the segment that contains the start date
+            const reservationText = r.reservation_name || r.reservation_description || 'Reservation';
+            const isStartRow = rowDays.some(day => day.dateStr === r.reservation_start_date);
+            
+            if (isStartRow) {
+              event.textContent = reservationText;
+              event.style.color = 'white';
+            }
+            
+            event.dataset.eventType = 'reservation';
+            event.dataset.eventId = r.reservation_id;
+            event.dataset.propertyId = propertyId;
+            event.dataset.startDate = r.reservation_start_date;
+            event.dataset.endDate = r.reservation_end_date;
+            event.style.cursor = 'pointer';
+            
+            // Calculate width and position for this row segment
+            setTimeout(() => {
+              const firstRect = firstDayDiv.getBoundingClientRect();
+              const lastRect = lastDayDiv.getBoundingClientRect();
+              const rowRect = reservationRow.getBoundingClientRect();
+              
+              // Calculate width from start of first day in row to end of last day in row
+              const width = lastRect.right - firstRect.left;
+              
+              // Position relative to the reservation row
+              const leftOffset = firstRect.left - rowRect.left;
+              
+              event.style.left = `${leftOffset}px`;
+              event.style.width = `${width}px`;
+            }, 0);
+            
+            // Set initial width as fallback
+            const dayWidth = firstDayDiv.offsetWidth || 100;
+            event.style.left = '0px';
+            event.style.width = `${dayWidth * rowDays.length}px`;
+            event.style.borderRadius = '2px';
+            
+            // Use sync partner bar color from config if available, otherwise use reservation color
+            if (r.sync_partner_name && SYNC_PARTNER_BAR_COLORS[r.sync_partner_name]) {
+              event.style.background = SYNC_PARTNER_BAR_COLORS[r.sync_partner_name];
+            } else if (r.partner_color) {
+              event.style.background = r.partner_color;
+            } else {
+              event.style.background = RESERVATION_COLOR;
+            }
+            
+            event.addEventListener('click', (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              this.editEvent('reservation', r);
+            });
+            
+            reservationRow.appendChild(event);
+            
+            // Mark days in this row to not render this event again
+            rowDays.forEach(day => {
+              renderedEvents.add(`reservation-${r.reservation_id}-${day.dateStr}`);
+            });
+          });
+        } else if (!isMultiDay) {
+          // Single day event
+          const event = document.createElement('div');
+          event.className = 'event-bar event-reservation';
+          event.textContent = r.reservation_name || r.reservation_description || 'Reservation';
+          event.dataset.eventType = 'reservation';
+          event.dataset.eventId = r.reservation_id;
+          event.dataset.propertyId = propertyId;
+          event.dataset.startDate = r.reservation_start_date;
+          event.dataset.endDate = r.reservation_end_date;
+          event.style.cursor = 'pointer';
+          // Use sync partner bar color from config if available, otherwise use reservation color
+          if (r.sync_partner_name && SYNC_PARTNER_BAR_COLORS[r.sync_partner_name]) {
+            event.style.background = SYNC_PARTNER_BAR_COLORS[r.sync_partner_name];
+          } else if (r.partner_color) {
+            event.style.background = r.partner_color;
+          } else {
+            event.style.background = RESERVATION_COLOR;
+          }
+          event.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.editEvent('reservation', r);
+          });
+          reservationRow.appendChild(event);
+        }
+      });
+
+    // Cleaning - middle row (always single day)
+    this.events.cleaning
+      .filter(c => c.property_id == propertyId && c.cleaning_date === dateStr)
+      .forEach(c => {
+        const event = document.createElement('div');
+        event.className = 'event-bar event-cleaning';
+        event.textContent = c.cleaner_initials || 'Cleaning';
+        event.dataset.eventType = 'cleaning';
+        event.dataset.eventId = c.property_cleaning_id;
+        event.dataset.propertyId = propertyId;
+        event.dataset.date = c.cleaning_date;
+        event.style.cursor = 'pointer';
+        event.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.editEvent('cleaning', c);
+        });
+        cleaningRow.appendChild(event);
+      });
+
+    // Maintenance - bottom row (multi-day events span across days)
+    this.events.maintenance
+      .filter(m => m.property_id == propertyId && 
+                   dateStr >= m.maintenance_start_date && 
+                   dateStr <= m.maintenance_end_date &&
+                   !renderedEvents.has(`maintenance-${m.property_maintenance_id}-${dateStr}`))
+      .forEach(m => {
+        renderedEvents.add(`maintenance-${m.property_maintenance_id}-${dateStr}`);
+        
+        // Check if this is a multi-day event
+        const isMultiDay = m.maintenance_start_date !== m.maintenance_end_date;
+        const isStartDay = dateStr === m.maintenance_start_date;
+        
+        if (isMultiDay && isStartDay) {
+          // For multi-day events, render a segment for each row (week) the event spans
+          // Find all days that this maintenance covers
+          const maintenanceDays = [];
+          for (let i = 0; i < allDays.length; i++) {
+            const dayDateStr = allDays[i].dataset.date;
+            if (dayDateStr >= m.maintenance_start_date && dayDateStr <= m.maintenance_end_date) {
+              maintenanceDays.push({ index: i, dayDiv: allDays[i], dateStr: dayDateStr });
+            }
+          }
+          
+          // Group days by row (each row has 7 days)
+          const rows = [];
+          maintenanceDays.forEach(day => {
+            const rowIndex = Math.floor(day.index / 7);
+            if (!rows[rowIndex]) {
+              rows[rowIndex] = [];
+            }
+            rows[rowIndex].push(day);
+          });
+          
+          // Render a segment for each row
+          rows.forEach((rowDays, rowIdx) => {
+            const firstDayInRow = rowDays[0];
+            const lastDayInRow = rowDays[rowDays.length - 1];
+            const firstDayDiv = firstDayInRow.dayDiv;
+            const lastDayDiv = lastDayInRow.dayDiv;
+            const maintenanceRow = firstDayDiv.querySelector('[data-row-type="maintenance"]');
+            
+            if (!maintenanceRow) return;
+            
+            const event = document.createElement('div');
+            event.className = 'calendar-event-span event-maintenance';
+            
+            // Only show text on the first segment
+            if (rowIdx === 0) {
+              event.textContent = m.maintenance_description.substring(0, 15) + '...';
+            }
+            
+            event.dataset.eventType = 'maintenance';
+            event.dataset.eventId = m.property_maintenance_id;
+            event.dataset.propertyId = propertyId;
+            event.dataset.startDate = m.maintenance_start_date;
+            event.dataset.endDate = m.maintenance_end_date;
+            event.style.cursor = 'pointer';
+            
+            // Calculate width and position for this row segment
+            setTimeout(() => {
+              const firstRect = firstDayDiv.getBoundingClientRect();
+              const lastRect = lastDayDiv.getBoundingClientRect();
+              const rowRect = maintenanceRow.getBoundingClientRect();
+              
+              // Calculate width from start of first day in row to end of last day in row
+              const width = lastRect.right - firstRect.left;
+              
+              // Position relative to the maintenance row
+              const leftOffset = firstRect.left - rowRect.left;
+              
+              event.style.left = `${leftOffset}px`;
+              event.style.width = `${width}px`;
+            }, 0);
+            
+            // Set initial width as fallback
+            const dayWidth = firstDayDiv.offsetWidth || 100;
+            event.style.left = '0px';
+            event.style.width = `${dayWidth * rowDays.length}px`;
+            event.style.borderRadius = '2px';
+            
+            event.addEventListener('click', (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              this.editEvent('maintenance', m);
+            });
+            
+            maintenanceRow.appendChild(event);
+            
+            // Mark days in this row to not render this event again
+            rowDays.forEach(day => {
+              renderedEvents.add(`maintenance-${m.property_maintenance_id}-${day.dateStr}`);
+            });
+          });
+        } else if (!isMultiDay) {
+          // Single day event
+          const event = document.createElement('div');
+          event.className = 'event-bar event-maintenance';
+          event.textContent = m.maintenance_description;
+          event.dataset.eventType = 'maintenance';
+          event.dataset.eventId = m.property_maintenance_id;
+          event.dataset.propertyId = propertyId;
+          event.dataset.startDate = m.maintenance_start_date;
+          event.dataset.endDate = m.maintenance_end_date;
+          event.style.cursor = 'pointer';
+          event.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.editEvent('maintenance', m);
+          });
+          maintenanceRow.appendChild(event);
+        }
+      });
+  }
+
+  addCellInteractionHandlers(cell, propertyId, dateStr) {
+    cell.addEventListener('mousedown', (e) => {
+      // Don't start drag if clicking on an event or its children
+      if (e.target.closest('.multi-calendar-event, .multi-calendar-event-span')) {
+        return;
+      }
+      e.preventDefault();
+      this.dragStart = { propertyId, date: dateStr };
+      this.clearSelection();
+      cell.classList.add('cell-selected');
+      
+      // Add document-level mouseup handler if not already added
+      if (!this.documentMouseUpHandler) {
+        this.documentMouseUpHandler = (e) => {
+          // Don't open selector if clicking on an event
+          if (e.target.closest('.multi-calendar-event, .multi-calendar-event-span')) {
+            this.dragStart = null;
+            this.dragEnd = null;
+            this.clearSelection();
+            document.removeEventListener('mouseup', this.documentMouseUpHandler);
+            this.documentMouseUpHandler = null;
+            return;
+          }
+          if (this.dragStart) {
+            const start = this.dragStart.date;
+            const end = this.dragEnd ? this.dragEnd.date : this.dragStart.date;
+            this.clearSelection();
+            this.openEventTypeSelector(this.dragStart.propertyId, start, end);
+            this.dragStart = null;
+            this.dragEnd = null;
+            document.removeEventListener('mouseup', this.documentMouseUpHandler);
+            this.documentMouseUpHandler = null;
+          }
+        };
+        document.addEventListener('mouseup', this.documentMouseUpHandler);
+      }
+    });
+
+    cell.addEventListener('mouseenter', (e) => {
+      if (this.dragStart && this.dragStart.propertyId == propertyId) {
+        this.dragEnd = { propertyId, date: dateStr };
+        this.highlightCellRange(this.dragStart.propertyId, this.dragStart.date, this.dragEnd.date);
+      }
+    });
+
+    cell.addEventListener('mouseup', (e) => {
+      // Don't open selector if clicking on an event
+      if (e.target.closest('.multi-calendar-event, .multi-calendar-event-span')) {
+        if (this.dragStart) {
+          this.dragStart = null;
+          this.dragEnd = null;
+          this.clearSelection();
+          if (this.documentMouseUpHandler) {
+            document.removeEventListener('mouseup', this.documentMouseUpHandler);
+            this.documentMouseUpHandler = null;
+          }
+        }
+        return;
+      }
+      e.stopPropagation();
+      if (this.dragStart) {
+        const start = this.dragStart.date;
+        const end = this.dragEnd ? this.dragEnd.date : this.dragStart.date;
+        this.clearSelection();
+        this.openEventTypeSelector(this.dragStart.propertyId, start, end);
+        this.dragStart = null;
+        this.dragEnd = null;
+        if (this.documentMouseUpHandler) {
+          document.removeEventListener('mouseup', this.documentMouseUpHandler);
+          this.documentMouseUpHandler = null;
+        }
+      }
+    });
+  }
+
+  addDayInteractionHandlers(dayDiv, propertyId, dateStr) {
+    dayDiv.addEventListener('mousedown', (e) => {
+      // Don't start drag if clicking on an event or its children
+      if (e.target.closest('.event-bar, .event-reservation, .event-cleaning, .event-maintenance')) {
+        return;
+      }
+      e.preventDefault();
+      this.dragStart = { propertyId, date: dateStr };
+      this.clearSelection();
+      dayDiv.classList.add('day-selected');
+      
+      // Add document-level mouseup handler if not already added
+      if (!this.documentMouseUpHandler) {
+        this.documentMouseUpHandler = (e) => {
+          // Don't open selector if clicking on an event
+          if (e.target.closest('.event-bar, .event-reservation, .event-cleaning, .event-maintenance')) {
+            this.dragStart = null;
+            this.dragEnd = null;
+            this.clearSelection();
+            document.removeEventListener('mouseup', this.documentMouseUpHandler);
+            this.documentMouseUpHandler = null;
+            return;
+          }
+          if (this.dragStart) {
+            const start = this.dragStart.date;
+            const end = this.dragEnd ? this.dragEnd.date : this.dragStart.date;
+            this.clearSelection();
+            this.openEventTypeSelector(this.dragStart.propertyId, start, end);
+            this.dragStart = null;
+            this.dragEnd = null;
+            document.removeEventListener('mouseup', this.documentMouseUpHandler);
+            this.documentMouseUpHandler = null;
+          }
+        };
+        document.addEventListener('mouseup', this.documentMouseUpHandler);
+      }
+    });
+
+    dayDiv.addEventListener('mouseenter', (e) => {
+      if (this.dragStart && this.dragStart.propertyId == propertyId) {
+        this.dragEnd = { propertyId, date: dateStr };
+        this.highlightDayRange(this.dragStart.propertyId, this.dragStart.date, this.dragEnd.date);
+      }
+    });
+
+    dayDiv.addEventListener('mouseup', (e) => {
+      // Don't open selector if clicking on an event
+      if (e.target.closest('.event-bar, .event-reservation, .event-cleaning, .event-maintenance')) {
+        if (this.dragStart) {
+          this.dragStart = null;
+          this.dragEnd = null;
+          this.clearSelection();
+          if (this.documentMouseUpHandler) {
+            document.removeEventListener('mouseup', this.documentMouseUpHandler);
+            this.documentMouseUpHandler = null;
+          }
+        }
+        return;
+      }
+      e.stopPropagation();
+      if (this.dragStart) {
+        const start = this.dragStart.date;
+        const end = this.dragEnd ? this.dragEnd.date : this.dragStart.date;
+        this.clearSelection();
+        this.openEventTypeSelector(this.dragStart.propertyId, start, end);
+        this.dragStart = null;
+        this.dragEnd = null;
+        if (this.documentMouseUpHandler) {
+          document.removeEventListener('mouseup', this.documentMouseUpHandler);
+          this.documentMouseUpHandler = null;
+        }
+      }
+    });
+  }
+
+  clearSelection() {
+    document.querySelectorAll('.cell-selected, .day-selected').forEach(el => {
+      el.classList.remove('cell-selected', 'day-selected');
+    });
+  }
+
+  highlightCellRange(propertyId, startDate, endDate) {
+    this.clearSelection();
+    
+    // Normalize dates to YYYY-MM-DD strings for comparison
+    const start = startDate;
+    const end = endDate;
+    const dates = [start, end].sort();
+    const normalizedStart = dates[0];
+    const normalizedEnd = dates[1];
+
+    // Find all cells for this property in the date range
+    const cells = document.querySelectorAll(`[data-property-id="${propertyId}"].multi-calendar-cell`);
+    cells.forEach(cell => {
+      const cellDate = cell.dataset.date;
+      if (cellDate >= normalizedStart && cellDate <= normalizedEnd) {
+        cell.classList.add('cell-selected');
+      }
+    });
+  }
+
+  highlightDayRange(propertyId, startDate, endDate) {
+    this.clearSelection();
+    
+    // Normalize dates to YYYY-MM-DD strings for comparison
+    const start = startDate;
+    const end = endDate;
+    const dates = [start, end].sort();
+    const normalizedStart = dates[0];
+    const normalizedEnd = dates[1];
+
+    // Find all day divs in the date range
+    const days = document.querySelectorAll(`.calendar-day[data-date]`);
+    days.forEach(day => {
+      const dayDate = day.dataset.date;
+      if (dayDate >= normalizedStart && dayDate <= normalizedEnd) {
+        day.classList.add('day-selected');
+      }
+    });
+  }
+
+  openEventTypeSelector(propertyId, startDate, endDate) {
+    this.pendingEventSelection = { propertyId, startDate, endDate };
+    const modal = new bootstrap.Modal(document.getElementById('eventTypeModal'));
+    modal.show();
+  }
+
+  selectEventType(type) {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('eventTypeModal'));
+    modal.hide();
+    
+    if (this.pendingEventSelection) {
+      const { propertyId, startDate, endDate } = this.pendingEventSelection;
+      this.openEventModal(type, propertyId, startDate, endDate);
+      this.pendingEventSelection = null;
+    }
+  }
+
+  editEvent(type, eventData) {
+    this.openEventModal(type, eventData.property_id, 
+      eventData.reservation_start_date || eventData.cleaning_date || eventData.maintenance_start_date,
+      eventData.reservation_end_date || eventData.cleaning_date || eventData.maintenance_end_date,
+      eventData
+    );
+  }
+
+  openEventModal(type, propertyId, startDate, endDate, eventData = null) {
+    const isEdit = !!eventData;
+    
+    // Check if this is a sync partner reservation (read-only)
+    const isSyncPartner = isEdit && type === 'reservation' && 
+      (eventData.source === 'sync_partner' || eventData.sync_partner_name);
+    
+    document.getElementById('eventType').value = type;
+    document.getElementById('eventPropertyId').value = propertyId;
+    document.getElementById('eventStartDate').value = startDate;
+    document.getElementById('eventEndDate').value = endDate;
+    document.getElementById('eventId').value = eventData ? 
+      (eventData.reservation_id || eventData.property_cleaning_id || eventData.property_maintenance_id) : '';
+
+    // Hide all field groups
+    document.getElementById('reservationFields').style.display = 'none';
+    document.getElementById('cleaningFields').style.display = 'none';
+    document.getElementById('maintenanceFields').style.display = 'none';
+
+    // Show appropriate fields and populate with data if editing
+    if (type === 'reservation') {
+      const title = isSyncPartner ? 'View Reservation' : (isEdit ? 'Edit Reservation' : 'Create Reservation');
+      document.getElementById('eventModalTitle').textContent = title;
+      document.getElementById('reservationFields').style.display = 'block';
+      
+      // Show/hide sync partner notice
+      if (isSyncPartner) {
+        document.getElementById('syncPartnerNotice').style.display = 'block';
+        document.getElementById('syncPartnerName').textContent = eventData.sync_partner_name || 'external source';
+      } else {
+        document.getElementById('syncPartnerNotice').style.display = 'none';
+      }
+      
+      if (isEdit) {
+        document.getElementById('reservationName').value = eventData.reservation_name || '';
+        document.getElementById('reservationDescription').value = eventData.reservation_description || '';
+        document.getElementById('reservationStartTime').value = eventData.reservation_start_time || 'standard';
+        document.getElementById('reservationEndTime').value = eventData.reservation_end_time || 'standard';
+        document.getElementById('reservationStatus').value = eventData.reservation_status || 'confirmed';
+        
+        // Make fields read-only for sync partner reservations
+        if (isSyncPartner) {
+          document.getElementById('reservationName').readOnly = true;
+          document.getElementById('reservationDescription').readOnly = true;
+          document.getElementById('reservationStartTime').disabled = true;
+          document.getElementById('reservationEndTime').disabled = true;
+          document.getElementById('reservationStatus').disabled = true;
+        } else {
+          document.getElementById('reservationName').readOnly = false;
+          document.getElementById('reservationDescription').readOnly = false;
+          document.getElementById('reservationStartTime').disabled = false;
+          document.getElementById('reservationEndTime').disabled = false;
+          document.getElementById('reservationStatus').disabled = false;
+        }
+      } else {
+        // Creating new reservation - ensure fields are enabled
+        document.getElementById('reservationName').readOnly = false;
+        document.getElementById('reservationDescription').readOnly = false;
+        document.getElementById('reservationStartTime').disabled = false;
+        document.getElementById('reservationEndTime').disabled = false;
+        document.getElementById('reservationStatus').disabled = false;
+      }
+    } else if (type === 'cleaning') {
+      document.getElementById('eventModalTitle').textContent = isEdit ? 'Edit Cleaning Event' : 'Create Cleaning Event';
+      document.getElementById('cleaningFields').style.display = 'block';
+      if (isEdit) {
+        document.getElementById('cleaningCleanerId').value = eventData.cleaner_id || '';
+        document.getElementById('cleaningWindow').value = eventData.cleaning_window || '';
+        document.getElementById('cleaningNotes').value = eventData.notes || '';
+      }
+    } else if (type === 'maintenance') {
+      document.getElementById('eventModalTitle').textContent = isEdit ? 'Edit Maintenance Event' : 'Create Maintenance Event';
+      document.getElementById('maintenanceFields').style.display = 'block';
+      if (isEdit) {
+        document.getElementById('maintenanceDescription').value = eventData.maintenance_description || '';
+        document.getElementById('maintenanceType').value = eventData.maintenance_type || '';
+      }
+    }
+
+    // Show/hide delete and save buttons
+    // Hide both for sync partner reservations (read-only)
+    if (isSyncPartner) {
+      document.getElementById('deleteEventBtn').style.display = 'none';
+      document.getElementById('saveEventBtn').style.display = 'none';
+    } else {
+      document.getElementById('deleteEventBtn').style.display = isEdit ? 'inline-block' : 'none';
+      document.getElementById('saveEventBtn').style.display = 'inline-block';
+    }
+
+    // Update date range display
+    // Create dates treating the string as local time components to avoid timezone shifts
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+      return date.toLocaleDateString();
+    };
+
+    const startDisplay = formatDate(startDate);
+    const endDisplay = formatDate(endDate);
+    
+    document.getElementById('dateRangeDisplay').textContent = 
+      startDisplay === endDisplay ? startDisplay : `${startDisplay} - ${endDisplay}`;
+
+    // Reset form if creating new
+    if (!isEdit) {
+      document.getElementById('eventForm').reset();
+      document.getElementById('eventType').value = type;
+      document.getElementById('eventPropertyId').value = propertyId;
+      document.getElementById('eventStartDate').value = startDate;
+      document.getElementById('eventEndDate').value = endDate;
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('eventModal'));
+    modal.show();
+  }
+
+  async saveEvent() {
+    const type = document.getElementById('eventType').value;
+    const propertyId = document.getElementById('eventPropertyId').value;
+    const startDate = document.getElementById('eventStartDate').value;
+    const endDate = document.getElementById('eventEndDate').value;
+
+    const eventId = document.getElementById('eventId').value;
+    const isNewEvent = !eventId;
+
+    // Validate that new events cannot be created in the past
+    if (isNewEvent) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      
+      if (start < today) {
+        alert('Error: Cannot create events in the past. Please select today or a future date.');
+        return;
+      }
+      
+      // For events with end dates, also check the end date
+      if (endDate && type !== 'cleaning') {
+        const end = new Date(endDate);
+        end.setHours(0, 0, 0, 0);
+        if (end < today) {
+          alert('Error: Cannot create events in the past. Please select today or a future date.');
+          return;
+        }
+      }
+    }
+
+    let endpoint = '';
+    let payload = {};
+    
+    if (type === 'reservation') {
+      endpoint = '/api/dashboard/reservations';
+      payload = {
+        property_id: propertyId,
+        reservation_start_date: startDate,
+        reservation_end_date: endDate,
+        reservation_name: document.getElementById('reservationName').value,
+        reservation_description: document.getElementById('reservationDescription').value,
+        reservation_start_time: document.getElementById('reservationStartTime').value,
+        reservation_end_time: document.getElementById('reservationEndTime').value,
+        reservation_status: document.getElementById('reservationStatus').value,
+      };
+      if (eventId) payload.reservation_id = eventId;
+    } else if (type === 'cleaning') {
+      endpoint = '/api/dashboard/cleaning';
+      payload = {
+        property_id: propertyId,
+        cleaning_date: startDate,
+        cleaner_id: document.getElementById('cleaningCleanerId').value || null,
+        cleaning_window: document.getElementById('cleaningWindow').value || null,
+        notes: document.getElementById('cleaningNotes').value || null,
+      };
+      if (eventId) payload.cleaning_id = eventId;
+    } else if (type === 'maintenance') {
+      endpoint = '/api/dashboard/maintenance';
+      payload = {
+        property_id: propertyId,
+        maintenance_start_date: startDate,
+        maintenance_end_date: endDate,
+        maintenance_description: document.getElementById('maintenanceDescription').value,
+        maintenance_type: document.getElementById('maintenanceType').value || null,
+      };
+      if (eventId) payload.maintenance_id = eventId;
+    }
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (data.error) {
+        alert('Error: ' + data.error);
+      } else {
+        bootstrap.Modal.getInstance(document.getElementById('eventModal')).hide();
+        this.loadView(); // Reload view to show new event
+      }
+    } catch (error) {
+      alert('Failed to save event: ' + error.message);
+    }
+  }
+
+  async renderCurrentView() {
+    if (this.currentView === 'multi') {
+      await this.renderMultiCalendar();
+    } else if (this.currentView === 'single') {
+      await this.renderSingleCalendar();
+    } else if (this.currentView === 'list') {
+      await this.renderListView();
+    }
+  }
+
+  async deleteEvent() {
+    const type = document.getElementById('eventType').value;
+    const eventId = document.getElementById('eventId').value;
+
+    if (!eventId) {
+      alert('No event selected to delete');
+      return;
+    }
+
+    if (!confirm('Are you sure you want to delete this event?')) {
+      return;
+    }
+
+    let endpoint = '';
+    if (type === 'reservation') {
+      endpoint = `/api/dashboard/reservations/${eventId}`;
+    } else if (type === 'cleaning') {
+      endpoint = `/api/dashboard/cleaning/${eventId}`;
+    } else if (type === 'maintenance') {
+      endpoint = `/api/dashboard/maintenance/${eventId}`;
+    }
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+      if (data.error) {
+        alert('Error: ' + data.error);
+      } else {
+        bootstrap.Modal.getInstance(document.getElementById('eventModal')).hide();
+        this.loadView(); // Reload view to show updated events
+      }
+    } catch (error) {
+      alert('Failed to delete event: ' + error.message);
+    }
+  }
+}
+
+// Initialize dashboard when page loads
+document.addEventListener('DOMContentLoaded', () => {
+  window.dashboard = new Dashboard();
+  
+  // Setup sync button
+  const syncBtn = document.getElementById('syncCalendarBtn');
+  const syncModal = new bootstrap.Modal(document.getElementById('syncProgressModal'));
+  const syncProgressBar = document.getElementById('syncProgressBar');
+  const syncProgressMessage = document.getElementById('syncProgressMessage');
+  const syncProgressDetails = document.getElementById('syncProgressDetails');
+  const syncCloseBtn = document.getElementById('syncCloseBtn');
+  const syncIcon = document.getElementById('syncIcon');
+  
+  syncBtn?.addEventListener('click', (event) => {
+    // Reset UI
+    syncProgressBar.style.width = '0%';
+    syncProgressBar.textContent = '0%';
+    syncProgressMessage.textContent = 'Starting sync...';
+    syncProgressDetails.textContent = '';
+    syncCloseBtn.style.display = 'none';
+    syncIcon.textContent = '🔄';
+    syncBtn.disabled = true;
+    
+    // Show modal
+    syncModal.show();
+    
+    // Check for force parameter (Shift+Click)
+    const force = event?.shiftKey ? '1' : '0';
+    const url = `/api/dashboard/sync?force=${force}`;
+    
+    // Create EventSource for Server-Sent Events
+    const eventSource = new EventSource(url);
+    
+    eventSource.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        
+        if (data.status === 'starting') {
+          syncProgressMessage.textContent = data.message;
+        } else if (data.status === 'progress') {
+          const percent = data.total > 0 ? Math.round((data.current / data.total) * 100) : 0;
+          syncProgressBar.style.width = percent + '%';
+          syncProgressBar.textContent = percent + '%';
+          syncProgressMessage.textContent = data.message;
+          if (data.property_id && data.partner) {
+            syncProgressDetails.textContent = `Property ${data.property_id} - ${data.partner}`;
+          }
+        } else if (data.status === 'success') {
+          syncProgressMessage.textContent = data.message;
+          syncProgressDetails.textContent = `Property ${data.result.property_id} - ${data.result.partner}: Added ${data.result.stats?.added || 0}, Updated ${data.result.stats?.updated || 0}`;
+        } else if (data.status === 'skipped') {
+          syncProgressMessage.textContent = data.message;
+          syncProgressDetails.textContent = '';
+        } else if (data.status === 'error') {
+          syncProgressMessage.textContent = 'Error: ' + data.message;
+          syncProgressDetails.textContent = '';
+        } else if (data.status === 'complete') {
+          syncProgressBar.style.width = '100%';
+          syncProgressBar.textContent = '100%';
+          syncProgressMessage.textContent = data.message;
+          
+          // Show summary
+          const summary = data.results || [];
+          const successCount = summary.filter(r => r.status === 'success').length;
+          const errorCount = summary.filter(r => r.status === 'error').length;
+          const skippedCount = summary.filter(r => r.status === 'skipped').length;
+          
+          syncProgressDetails.textContent = `Complete: ${successCount} succeeded, ${errorCount} errors, ${skippedCount} skipped`;
+          
+          // Close connection
+          eventSource.close();
+          
+          // Enable close button
+          syncCloseBtn.style.display = 'block';
+          syncBtn.disabled = false;
+          syncIcon.textContent = '🔄';
+          
+          // Reload events after a short delay
+          setTimeout(() => {
+            if (window.dashboard) {
+              window.dashboard.loadView();
+            }
+          }, 500);
+        }
+      } catch (err) {
+        console.error('Error parsing sync data:', err);
+      }
+    };
+    
+    eventSource.onerror = (e) => {
+      console.error('EventSource error:', e);
+      syncProgressMessage.textContent = 'Connection error. Please try again.';
+      syncCloseBtn.style.display = 'block';
+      syncBtn.disabled = false;
+      syncIcon.textContent = '🔄';
+      eventSource.close();
+    };
+    
+    // Close modal handler
+    syncCloseBtn.addEventListener('click', () => {
+      eventSource.close();
+      syncModal.hide();
+    });
+  });
+});
+</script>
 {% endblock %}
+
 

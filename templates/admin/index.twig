@@ -1,0 +1,63 @@
+{% extends "layout.twig" %}
+
+{% block title %}Admin Dashboard | Rental Calendar{% endblock %}
+
+{% block content %}
+  <section class="py-5">
+    <div class="container">
+      <div class="row mb-4">
+        <div class="col-12">
+          <h1 class="h2 mb-0">Admin Dashboard</h1>
+          <p class="text-muted">Manage your rental calendar system</p>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-6 col-lg-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h5 class="card-title">
+                <a href="/admin/users" class="text-decoration-none">Users</a>
+              </h5>
+              <p class="text-muted mb-0">Manage system users</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h5 class="card-title">
+                <a href="/admin/properties" class="text-decoration-none">Properties</a>
+              </h5>
+              <p class="text-muted mb-0">Manage rental properties</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h5 class="card-title">
+                <a href="/admin/property-links" class="text-decoration-none">Property Links</a>
+              </h5>
+              <p class="text-muted mb-0">Manage property sync partner links</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h5 class="card-title">
+                <a href="/admin/cleaners" class="text-decoration-none">Cleaners</a>
+              </h5>
+              <p class="text-muted mb-0">Manage cleaning staff</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+

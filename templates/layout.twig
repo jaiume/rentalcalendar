@@ -28,9 +28,15 @@
         </button>
         <div class="collapse navbar-collapse" id="nav">
           <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-            <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
-            <li class="nav-item"><a class="nav-link" href="/dashboard">Dashboard</a></li>
-            <li class="nav-item"><a class="nav-link" href="/login">Login</a></li>
+            <li class="nav-item"><a class="nav-link" href="/">Dashboard</a></li>
+            {% if user %}
+              {% if user.is_admin %}
+                <li class="nav-item"><a class="nav-link" href="/admin">Admin</a></li>
+              {% endif %}
+              <li class="nav-item"><a class="nav-link" href="/logout">Logout</a></li>
+            {% else %}
+              <li class="nav-item"><a class="nav-link" href="/login">Login</a></li>
+            {% endif %}
           </ul>
         </div>
       </div>

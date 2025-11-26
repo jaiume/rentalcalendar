@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Middleware\TwigGlobalMiddleware;
 use App\Services\ConfigService;
 use DI\ContainerBuilder;
 use Dotenv\Dotenv;
