@@ -68,6 +68,7 @@
               <button class="btn btn-sm btn-outline-secondary" id="prevMonthMulti">← Prev</button>
               <span id="currentMonthMulti" class="fw-bold"></span>
               <button class="btn btn-sm btn-outline-secondary" id="nextMonthMulti">Next →</button>
+              <button class="btn btn-sm btn-outline-primary" id="todayBtnMulti">Today</button>
           </div>
         </div>
         </div>
@@ -92,6 +93,7 @@
               <button class="btn btn-sm btn-outline-secondary" id="prevMonthSingle">← Prev</button>
               <span id="currentMonthSingle" class="fw-bold"></span>
               <button class="btn btn-sm btn-outline-secondary" id="nextMonthSingle">Next →</button>
+              <button class="btn btn-sm btn-outline-primary" id="todayBtnSingle">Today</button>
             </div>
           </div>
         </div>
@@ -293,6 +295,16 @@
   color: #6c757d;
 }
 
+.calendar-day.today {
+  background: #e3f2fd;
+  border: 2px solid #2196f3;
+}
+
+.calendar-day.today .calendar-day-number {
+  color: #1976d2;
+  font-weight: bold;
+}
+
 .calendar-day-number {
   font-weight: bold;
   padding: 4px 8px;
@@ -388,6 +400,13 @@
   cursor: pointer;
   vertical-align: top;
   overflow: visible;
+}
+
+.multi-calendar-cell.today {
+  background: #e3f2fd;
+  border: 2px solid #2196f3;
+  font-weight: bold;
+  color: #1976d2;
 }
 
 .multi-calendar-cell-row {
@@ -654,6 +673,8 @@ class Dashboard {
     document.getElementById('nextMonthMulti')?.addEventListener('click', () => this.changeMonth(1));
     document.getElementById('prevMonthSingle')?.addEventListener('click', () => this.changeMonth(-1));
     document.getElementById('nextMonthSingle')?.addEventListener('click', () => this.changeMonth(1));
+    document.getElementById('todayBtnMulti')?.addEventListener('click', () => this.goToToday());
+    document.getElementById('todayBtnSingle')?.addEventListener('click', () => this.goToToday());
 
     // Event modal
     document.getElementById('saveEventBtn').addEventListener('click', () => this.saveEvent());
@@ -723,6 +744,11 @@ class Dashboard {
     this.loadView();
   }
 
+  goToToday() {
+    this.currentDate = new Date();
+    this.loadView();
+  }
+
   getMonthStart() {
     return new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
   }
@@ -757,15 +783,26 @@ class Dashboard {
       console.error('currentMonthMulti element not found');
     }
 
-    // Get days in month
+    // Get days in month and today's date for highlighting
     const daysInMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0).getDate();
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
 
     // Build header - use a single string to avoid multiple innerHTML assignments
     const header = document.getElementById('multiCalendarHeader');
+    const dayInitials = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     let headerHtml = '<tr><th class="multi-calendar-property">Property</th>';
     for (let i = 0; i < daysInMonth; i++) {
       const day = i + 1;
-      headerHtml += `<th class="multi-calendar-cell">${day}</th>`;
+      const date = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), day);
+      const dateStr = date.toISOString().split('T')[0];
+      const dayOfWeek = date.getDay();
+      const dayInitial = dayInitials[dayOfWeek];
+      const isTodayHeader = dateStr === todayStr;
+      headerHtml += `<th class="multi-calendar-cell${isTodayHeader ? ' today' : ''}">
+        <div style="font-size: 0.7rem; color: #6c757d; font-weight: normal;">${dayInitial}</div>
+        <div>${day}</div>
+      </th>`;
     }
     headerHtml += '</tr>';
     header.innerHTML = headerHtml;
@@ -798,6 +835,9 @@ class Dashboard {
         
         const cell = document.createElement('td');
         cell.className = 'multi-calendar-cell';
+        if (dateStr === todayStr) {
+          cell.classList.add('today');
+        }
         cell.dataset.propertyId = property.property_id;
         cell.dataset.date = dateStr;
         cell.dataset.dayIndex = i;
@@ -875,11 +915,13 @@ class Dashboard {
       container.appendChild(header);
     });
 
-    // Get first day of month
+    // Get first day of month and today's date for highlighting
     const firstDay = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
     const lastDay = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
 
     // Build calendar days
     const dayDivs = [];
@@ -892,6 +934,9 @@ class Dashboard {
       dayDiv.className = 'calendar-day';
       if (date.getMonth() !== this.currentDate.getMonth()) {
         dayDiv.classList.add('other-month');
+      }
+      if (dateStr === todayStr) {
+        dayDiv.classList.add('today');
       }
       
       dayDiv.innerHTML = `<div class="calendar-day-number">${date.getDate()}</div>`;
