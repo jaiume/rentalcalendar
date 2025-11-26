@@ -28,8 +28,7 @@ class MaintenanceDAO extends BaseDAO
                 property_id,
                 maintenance_start_date,
                 maintenance_end_date,
-                maintenance_description,
-                maintenance_type
+                maintenance_description
                 FROM property_maintenance
                 WHERE maintenance_start_date <= :end_date 
                 AND maintenance_end_date >= :start_date';
@@ -61,8 +60,7 @@ class MaintenanceDAO extends BaseDAO
                 property_maintenance_id,
                 maintenance_start_date,
                 maintenance_end_date,
-                maintenance_description,
-                maintenance_type
+                maintenance_description
                 FROM property_maintenance
                 WHERE property_id = :property_id
                 ORDER BY maintenance_start_date';
@@ -83,15 +81,14 @@ class MaintenanceDAO extends BaseDAO
         string $startDate,
         string $endDate,
         string $description,
-        ?string $maintenanceType = null,
         ?int $createdBy = null
     ): int {
         try {
             $stmt = $this->db->prepare(
                 'INSERT INTO property_maintenance 
                 (property_id, maintenance_start_date, maintenance_end_date, 
-                 maintenance_description, maintenance_type, created_by)
-                VALUES (:property_id, :start_date, :end_date, :description, :type, :created_by)'
+                 maintenance_description, created_by)
+                VALUES (:property_id, :start_date, :end_date, :description, :created_by)'
             );
             
             $stmt->execute([
@@ -99,7 +96,6 @@ class MaintenanceDAO extends BaseDAO
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'description' => $description,
-                'type' => $maintenanceType,
                 'created_by' => $createdBy,
             ]);
 

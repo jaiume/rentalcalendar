@@ -141,6 +141,22 @@
           <input type="hidden" id="eventEndDate" name="end_date">
           <input type="hidden" id="eventId" name="event_id">
           
+          <!-- Date Range Display/Input (shared by Reservations and Maintenance) -->
+          <div class="mb-3" id="dateRangeDisplayWrapper" style="display: none;">
+            <label class="form-label">Date Range</label>
+            <div class="form-control bg-light" id="dateRangeDisplay"></div>
+          </div>
+          <div class="row mb-3" id="dateRangeInputs" style="display: none;">
+            <div class="col-md-6 mb-3 mb-md-0">
+              <label class="form-label" id="startDateLabel">Start Date *</label>
+              <input type="date" class="form-control" id="eventStartDateInput" required>
+            </div>
+            <div class="col-md-6" id="endDateWrapper">
+              <label class="form-label" id="endDateLabel">End Date *</label>
+              <input type="date" class="form-control" id="eventEndDateInput" required>
+            </div>
+          </div>
+
           <!-- Reservation Fields -->
           <div id="reservationFields" style="display: none;">
             <div id="syncPartnerNotice" class="alert alert-info" style="display: none;">
@@ -153,22 +169,6 @@
             <div class="mb-3">
               <label class="form-label">Description</label>
               <textarea class="form-control" id="reservationDescription" name="description" rows="3"></textarea>
-            </div>
-            
-            <!-- Date Range Display/Input for Reservations -->
-            <div class="mb-3" id="dateRangeDisplayWrapper" style="display: none;">
-              <label class="form-label">Date Range</label>
-              <div class="form-control bg-light" id="dateRangeDisplay"></div>
-            </div>
-            <div class="row mb-3" id="dateRangeInputs" style="display: none;">
-              <div class="col-md-6 mb-3 mb-md-0">
-                <label class="form-label">Start Date *</label>
-                <input type="date" class="form-control" id="eventStartDateInput" required>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">End Date *</label>
-                <input type="date" class="form-control" id="eventEndDateInput" required>
-              </div>
             </div>
             
             <div class="row">
@@ -224,10 +224,6 @@
             <div class="mb-3">
               <label class="form-label">Description *</label>
               <textarea class="form-control" id="maintenanceDescription" name="description" rows="3" required></textarea>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Type</label>
-              <input type="text" class="form-control" id="maintenanceType" name="type" placeholder="e.g., Repair, Inspection">
             </div>
           </div>
         </form>
@@ -507,6 +503,8 @@ const MAINTENANCE_COLOR = '{{ maintenance_color }}';
 const CLEANING_COLOR = '{{ cleaning_color }}';
 const RESERVATION_COLOR = '{{ reservation_color }}';
 const SYNC_PARTNER_BAR_COLORS = {{ sync_partner_bar_colors|json_encode|raw }};
+const USER_IS_ADMIN = {{ user.is_admin ? 'true' : 'false' }};
+const USER_PERMISSIONS = {{ user_permissions|json_encode|raw }};
 
 class Dashboard {
   constructor() {
@@ -519,6 +517,8 @@ class Dashboard {
     this.dragStart = null;
     this.dragEnd = null;
     this.documentMouseUpHandler = null;
+    this.userPermissions = USER_PERMISSIONS || {};
+    this.isAdmin = USER_IS_ADMIN;
     
     this.init();
   }
@@ -679,6 +679,15 @@ class Dashboard {
     // Event modal
     document.getElementById('saveEventBtn').addEventListener('click', () => this.saveEvent());
     document.getElementById('deleteEventBtn').addEventListener('click', () => this.deleteEvent());
+    
+    // Clean up pending selection when event modal is hidden
+    const eventModal = document.getElementById('eventModal');
+    eventModal.addEventListener('hidden.bs.modal', () => {
+      // Reset pending selection if user cancels
+      if (this.pendingEventSelection) {
+        this.pendingEventSelection = null;
+      }
+    });
     
     // Add event button for list view
     document.getElementById('addEventBtn')?.addEventListener('click', () => {
@@ -1135,9 +1144,6 @@ class Dashboard {
         badgeColor = MAINTENANCE_COLOR;
         badgeHtml = `<span class="badge" style="background-color: ${badgeColor}; color: white;">${typeLabel}</span>`;
         description = event.data.maintenance_description || 'Maintenance';
-        if (event.data.maintenance_type) {
-          description += ` (${event.data.maintenance_type})`;
-        }
       }
       
       htmlContent += `
@@ -1216,7 +1222,9 @@ class Dashboard {
           event.dataset.propertyId = propertyId;
           event.dataset.startDate = r.reservation_start_date;
           event.dataset.endDate = r.reservation_end_date;
-          event.style.cursor = 'pointer';
+          
+          // Style based on permissions
+          this.styleEventElement(event, 'reservation', r);
           
           // Calculate width using actual cell positions
           setTimeout(() => {
@@ -1302,7 +1310,10 @@ class Dashboard {
         event.dataset.eventId = c.property_cleaning_id;
         event.dataset.propertyId = propertyId;
         event.dataset.date = c.cleaning_date;
-        event.style.cursor = 'pointer';
+        
+        // Style based on permissions
+        this.styleEventElement(event, 'cleaning', c);
+        
         event.addEventListener('click', (e) => {
           e.stopPropagation();
           this.editEvent('cleaning', c);
@@ -1356,7 +1367,9 @@ class Dashboard {
           event.dataset.propertyId = propertyId;
           event.dataset.startDate = m.maintenance_start_date;
           event.dataset.endDate = m.maintenance_end_date;
-          event.style.cursor = 'pointer';
+          
+          // Style based on permissions
+          this.styleEventElement(event, 'maintenance', m);
           
           // Calculate width using actual cell positions
           setTimeout(() => {
@@ -1404,7 +1417,10 @@ class Dashboard {
           event.dataset.propertyId = propertyId;
           event.dataset.startDate = m.maintenance_start_date;
           event.dataset.endDate = m.maintenance_end_date;
-          event.style.cursor = 'pointer';
+          
+          // Style based on permissions
+          this.styleEventElement(event, 'maintenance', m);
+          
           event.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -1488,7 +1504,9 @@ class Dashboard {
             event.dataset.propertyId = propertyId;
             event.dataset.startDate = r.reservation_start_date;
             event.dataset.endDate = r.reservation_end_date;
-            event.style.cursor = 'pointer';
+            
+            // Style based on permissions
+            this.styleEventElement(event, 'reservation', r);
             
             // Calculate width and position for this row segment
             setTimeout(() => {
@@ -1573,7 +1591,10 @@ class Dashboard {
         event.dataset.eventId = c.property_cleaning_id;
         event.dataset.propertyId = propertyId;
         event.dataset.date = c.cleaning_date;
-        event.style.cursor = 'pointer';
+        
+        // Style based on permissions
+        this.styleEventElement(event, 'cleaning', c);
+        
         event.addEventListener('click', (e) => {
           e.stopPropagation();
           e.preventDefault();
@@ -1686,7 +1707,10 @@ class Dashboard {
           event.dataset.propertyId = propertyId;
           event.dataset.startDate = m.maintenance_start_date;
           event.dataset.endDate = m.maintenance_end_date;
-          event.style.cursor = 'pointer';
+          
+          // Style based on permissions
+          this.styleEventElement(event, 'maintenance', m);
+          
           event.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -1893,24 +1917,129 @@ class Dashboard {
     });
   }
 
+  hasPermission(propertyId, permissionType) {
+    // Admins have all permissions
+    if (this.isAdmin) {
+      return true;
+    }
+    
+    // Check user permissions for this property
+    const perms = this.userPermissions[propertyId];
+    if (!perms) {
+      return false;
+    }
+    
+    return perms[permissionType] === true || perms[permissionType] === 1;
+  }
+
+  styleEventElement(element, eventType, eventData) {
+    const propertyId = eventData.property_id;
+    let permissionType = '';
+    
+    if (eventType === 'reservation') {
+      permissionType = 'can_create_reservation';
+      const isSyncPartner = eventData.source === 'sync_partner' || eventData.sync_partner_name;
+      const hasPermission = this.hasPermission(propertyId, permissionType);
+      element.style.cursor = (isSyncPartner || hasPermission) ? 'pointer' : 'default';
+      if (!isSyncPartner && !hasPermission) {
+        element.style.opacity = '0.7';
+        element.title = 'You do not have permission to edit this reservation';
+      }
+    } else if (eventType === 'cleaning') {
+      permissionType = 'can_add_cleaning';
+      const hasPermission = this.hasPermission(propertyId, permissionType);
+      element.style.cursor = hasPermission ? 'pointer' : 'default';
+      if (!hasPermission) {
+        element.style.opacity = '0.7';
+        element.title = 'You do not have permission to edit this cleaning';
+      }
+    } else if (eventType === 'maintenance') {
+      permissionType = 'can_add_maintenance';
+      const hasPermission = this.hasPermission(propertyId, permissionType);
+      element.style.cursor = hasPermission ? 'pointer' : 'default';
+      if (!hasPermission) {
+        element.style.opacity = '0.7';
+        element.title = 'You do not have permission to edit this maintenance';
+      }
+    }
+  }
+
   openEventTypeSelector(propertyId, startDate, endDate) {
     this.pendingEventSelection = { propertyId, startDate, endDate };
-    const modal = new bootstrap.Modal(document.getElementById('eventTypeModal'));
-    modal.show();
+    
+    // Filter buttons based on permissions
+    const modal = document.getElementById('eventTypeModal');
+    const reservationBtn = modal.querySelector('button[onclick*="reservation"]');
+    const cleaningBtn = modal.querySelector('button[onclick*="cleaning"]');
+    const maintenanceBtn = modal.querySelector('button[onclick*="maintenance"]');
+    
+    // Show/hide buttons based on permissions
+    if (reservationBtn) {
+      reservationBtn.style.display = this.hasPermission(propertyId, 'can_create_reservation') ? 'block' : 'none';
+    }
+    if (cleaningBtn) {
+      cleaningBtn.style.display = this.hasPermission(propertyId, 'can_add_cleaning') ? 'block' : 'none';
+    }
+    if (maintenanceBtn) {
+      maintenanceBtn.style.display = this.hasPermission(propertyId, 'can_add_maintenance') ? 'block' : 'none';
+    }
+    
+    // Check if any buttons are visible
+    const hasAnyPermission = 
+      this.hasPermission(propertyId, 'can_create_reservation') ||
+      this.hasPermission(propertyId, 'can_add_cleaning') ||
+      this.hasPermission(propertyId, 'can_add_maintenance');
+    
+    if (!hasAnyPermission) {
+      alert('You do not have permission to create events for this property');
+      return;
+    }
+    
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
   }
 
   selectEventType(type) {
-    const modal = bootstrap.Modal.getInstance(document.getElementById('eventTypeModal'));
-    modal.hide();
+    const modalElement = document.getElementById('eventTypeModal');
+    const modal = bootstrap.Modal.getInstance(modalElement);
+    if (modal) {
+      modal.hide();
+    }
     
     if (this.pendingEventSelection) {
       const { propertyId, startDate, endDate } = this.pendingEventSelection;
-      this.openEventModal(type, propertyId, startDate, endDate);
-      this.pendingEventSelection = null;
+      
+      // Wait for the event type modal to fully hide before opening the event modal
+      modalElement.addEventListener('hidden.bs.modal', () => {
+        this.openEventModal(type, propertyId, startDate, endDate);
+        this.pendingEventSelection = null;
+      }, { once: true });
     }
   }
 
   editEvent(type, eventData) {
+    // Check if user has permission to edit this type of event
+    const propertyId = eventData.property_id;
+    let permissionType = '';
+    
+    if (type === 'reservation') {
+      permissionType = 'can_create_reservation';
+    } else if (type === 'cleaning') {
+      permissionType = 'can_add_cleaning';
+    } else if (type === 'maintenance') {
+      permissionType = 'can_add_maintenance';
+    }
+    
+    // Check if this is a sync partner reservation (always viewable but not editable)
+    const isSyncPartner = type === 'reservation' && 
+      (eventData.source === 'sync_partner' || eventData.sync_partner_name);
+    
+    // If no permission and not a sync partner reservation, do nothing
+    if (!isSyncPartner && !this.hasPermission(propertyId, permissionType)) {
+      // Event is visible but not clickable - do nothing
+      return;
+    }
+    
     this.openEventModal(type, eventData.property_id, 
       eventData.reservation_start_date || eventData.cleaning_date || eventData.maintenance_start_date,
       eventData.reservation_end_date || eventData.cleaning_date || eventData.maintenance_end_date,
@@ -1993,7 +2122,6 @@ class Dashboard {
       document.getElementById('maintenanceFields').style.display = 'block';
       if (isEdit) {
         document.getElementById('maintenanceDescription').value = eventData.maintenance_description || '';
-        document.getElementById('maintenanceType').value = eventData.maintenance_type || '';
       }
     }
 
@@ -2039,23 +2167,32 @@ class Dashboard {
       startDateInput.value = startDate;
       endDateInput.value = endDate;
       
-      // Update labels based on event type
-      const startLabel = dateRangeInputs.querySelector('.col-md-6:first-child label');
-      const endLabel = dateRangeInputs.querySelector('.col-md-6:last-child label');
+      // Update labels and visibility based on event type
+      const startLabel = document.getElementById('startDateLabel');
+      const endLabel = document.getElementById('endDateLabel');
+      const endDateWrapper = document.getElementById('endDateWrapper');
+      const startDateWrapper = startLabel.parentElement;
       
       if (type === 'cleaning') {
+        // Cleaning is single day
         startLabel.textContent = 'Cleaning Date *';
-        endLabel.style.display = 'none';
-        endLabel.parentElement.style.display = 'none';
-        startLabel.parentElement.classList.remove('col-md-6');
-        startLabel.parentElement.classList.add('col-12');
-      } else {
+        endDateWrapper.style.display = 'none';
+        startDateWrapper.classList.remove('col-md-6');
+        startDateWrapper.classList.add('col-12');
+      } else if (type === 'reservation') {
+        // Reservation has start and end dates
         startLabel.textContent = 'Start Date *';
         endLabel.textContent = 'End Date *';
-        endLabel.style.display = 'block';
-        endLabel.parentElement.style.display = 'block';
-        startLabel.parentElement.classList.remove('col-12');
-        startLabel.parentElement.classList.add('col-md-6');
+        endDateWrapper.style.display = 'block';
+        startDateWrapper.classList.remove('col-12');
+        startDateWrapper.classList.add('col-md-6');
+      } else if (type === 'maintenance') {
+        // Maintenance has start and end dates
+        startLabel.textContent = 'Start Date *';
+        endLabel.textContent = 'End Date *';
+        endDateWrapper.style.display = 'block';
+        startDateWrapper.classList.remove('col-12');
+        startDateWrapper.classList.add('col-md-6');
       }
       
       // Add event listeners to sync date inputs with hidden fields
@@ -2150,7 +2287,6 @@ class Dashboard {
         maintenance_start_date: startDate,
         maintenance_end_date: endDate,
         maintenance_description: document.getElementById('maintenanceDescription').value,
-        maintenance_type: document.getElementById('maintenanceType').value || null,
       };
       if (eventId) payload.maintenance_id = eventId;
     }

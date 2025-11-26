@@ -17,6 +17,7 @@ use App\DAO\PropertyCalendarImportLinkDAO;
 use App\DAO\PropertyDAO;
 use App\DAO\ReservationDAO;
 use App\DAO\UserDAO;
+use App\DAO\UserPropertyPermissionDAO;
 use App\Middleware\AuthenticationMiddleware;
 use App\Middleware\TwigGlobalMiddleware;
 use App\Services\AuthenticationService;
@@ -67,6 +68,10 @@ return [
     
     AuthTokenDAO::class => static function (ContainerInterface $container): AuthTokenDAO {
         return new AuthTokenDAO($container->get(PDO::class));
+    },
+    
+    UserPropertyPermissionDAO::class => static function (ContainerInterface $container): UserPropertyPermissionDAO {
+        return new UserPropertyPermissionDAO($container->get(PDO::class));
     },
 
     PDO::class => static function (): PDO {
@@ -147,6 +152,7 @@ return [
             $container->get(ReservationDAO::class),
             $container->get(CleaningDAO::class),
             $container->get(MaintenanceDAO::class),
+            $container->get(UserPropertyPermissionDAO::class),
             $container->get(SyncService::class)
         );
     },
@@ -179,7 +185,9 @@ return [
     AdminUserController::class => static function (ContainerInterface $container): AdminUserController {
         return new AdminUserController(
             $container->get(Twig::class),
-            $container->get(UserDAO::class)
+            $container->get(UserDAO::class),
+            $container->get(PropertyDAO::class),
+            $container->get(UserPropertyPermissionDAO::class)
         );
     },
     
@@ -188,6 +196,16 @@ return [
             $container->get(Twig::class),
             $container->get(PropertyCalendarImportLinkDAO::class),
             $container->get(PropertyDAO::class)
+        );
+    },
+    
+    HomeController::class => static function (ContainerInterface $container): HomeController {
+        return new HomeController(
+            $container->get(Twig::class),
+            $container->get(UtilityService::class),
+            $container->get(ConfigService::class),
+            $container->get(PropertyDAO::class),
+            $container->get(UserPropertyPermissionDAO::class)
         );
     },
 ];

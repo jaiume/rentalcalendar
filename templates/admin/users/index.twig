@@ -51,6 +51,9 @@
                       <td>
                         <div class="btn-group btn-group-sm">
                           <a href="/admin/users/{{ user.user_id }}/edit" class="btn btn-outline-primary">Edit</a>
+                          {% if not user.is_admin %}
+                            <a href="/admin/users/{{ user.user_id }}/permissions" class="btn btn-outline-info">Permissions</a>
+                          {% endif %}
                           <a href="/admin/users/{{ user.user_id }}/toggle-active" class="btn btn-outline-{% if user.is_active %}warning{% else %}success{% endif %}">
                             {% if user.is_active %}Disable{% else %}Enable{% endif %}
                           </a>

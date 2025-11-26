@@ -53,6 +53,8 @@ return function (App $app): void {
         $group->post('/admin/users', [AdminUserController::class, 'store'])->setName('admin.users.store');
         $group->get('/admin/users/{id}/edit', [AdminUserController::class, 'edit'])->setName('admin.users.edit');
         $group->post('/admin/users/{id}', [AdminUserController::class, 'update'])->setName('admin.users.update');
+        $group->get('/admin/users/{id}/permissions', [AdminUserController::class, 'permissions'])->setName('admin.users.permissions');
+        $group->post('/admin/users/{id}/permissions', [AdminUserController::class, 'updatePermissions'])->setName('admin.users.update_permissions');
         $group->get('/admin/users/{id}/toggle-active', [AdminUserController::class, 'toggleActive'])->setName('admin.users.toggle_active');
         $group->get('/admin/users/{id}/delete', [AdminUserController::class, 'delete'])->setName('admin.users.delete');
 

@@ -1,0 +1,170 @@
+{% extends "layout.twig" %}
+
+{% block title %}Manage Permissions - {{ user.display_name ?? user.emailaddress }} | Admin{% endblock %}
+
+{% block content %}
+  <section class="py-5">
+    <div class="container">
+      <div class="row mb-4">
+        <div class="col-12">
+          <h1 class="h2 mb-0">Manage Property Permissions</h1>
+          <p class="text-muted">User: {{ user.display_name ?? user.emailaddress }}</p>
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          {{ error }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endif %}
+
+      {% if success %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          {{ success }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endif %}
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <form method="POST" action="/admin/users/{{ user.user_id }}/permissions">
+            <div class="table-responsive">
+              <table class="table table-bordered">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 25%;">Property</th>
+                    <th class="text-center" style="width: 18.75%;">View Calendar</th>
+                    <th class="text-center" style="width: 18.75%;">Create Reservation</th>
+                    <th class="text-center" style="width: 18.75%;">Add Cleaning</th>
+                    <th class="text-center" style="width: 18.75%;">Add Maintenance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% if properties|length > 0 %}
+                    {% for property in properties %}
+                      {% set propertyPerms = permissions[property.property_id] ?? null %}
+                      <tr>
+                        <td class="align-middle">
+                          <strong>{{ property.property_name }}</strong>
+                        </td>
+                        <td class="text-center align-middle">
+                          <div class="form-check d-inline-block">
+                            <input 
+                              class="form-check-input" 
+                              type="checkbox" 
+                              name="permissions[{{ property.property_id }}][can_view_calendar]" 
+                              id="perm_{{ property.property_id }}_view"
+                              value="1"
+                              {% if propertyPerms and propertyPerms.can_view_calendar %}checked{% endif %}
+                            >
+                            <label class="form-check-label visually-hidden" for="perm_{{ property.property_id }}_view">
+                              View Calendar
+                            </label>
+                          </div>
+                        </td>
+                        <td class="text-center align-middle">
+                          <div class="form-check d-inline-block">
+                            <input 
+                              class="form-check-input" 
+                              type="checkbox" 
+                              name="permissions[{{ property.property_id }}][can_create_reservation]" 
+                              id="perm_{{ property.property_id }}_reservation"
+                              value="1"
+                              {% if propertyPerms and propertyPerms.can_create_reservation %}checked{% endif %}
+                            >
+                            <label class="form-check-label visually-hidden" for="perm_{{ property.property_id }}_reservation">
+                              Create Reservation
+                            </label>
+                          </div>
+                        </td>
+                        <td class="text-center align-middle">
+                          <div class="form-check d-inline-block">
+                            <input 
+                              class="form-check-input" 
+                              type="checkbox" 
+                              name="permissions[{{ property.property_id }}][can_add_cleaning]" 
+                              id="perm_{{ property.property_id }}_cleaning"
+                              value="1"
+                              {% if propertyPerms and propertyPerms.can_add_cleaning %}checked{% endif %}
+                            >
+                            <label class="form-check-label visually-hidden" for="perm_{{ property.property_id }}_cleaning">
+                              Add Cleaning
+                            </label>
+                          </div>
+                        </td>
+                        <td class="text-center align-middle">
+                          <div class="form-check d-inline-block">
+                            <input 
+                              class="form-check-input" 
+                              type="checkbox" 
+                              name="permissions[{{ property.property_id }}][can_add_maintenance]" 
+                              id="perm_{{ property.property_id }}_maintenance"
+                              value="1"
+                              {% if propertyPerms and propertyPerms.can_add_maintenance %}checked{% endif %}
+                            >
+                            <label class="form-check-label visually-hidden" for="perm_{{ property.property_id }}_maintenance">
+                              Add Maintenance
+                            </label>
+                          </div>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr>
+                      <td colspan="5" class="text-center text-muted">
+                        No properties available. <a href="/admin/properties/create">Create a property</a> first.
+                      </td>
+                    </tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+
+            {% if properties|length > 0 %}
+              <div class="mt-4 d-flex justify-content-between align-items-center">
+                <a href="/admin/users" class="text-decoration-none">← Back to Users</a>
+                <div>
+                  <button type="submit" class="btn btn-primary">Save Permissions</button>
+                </div>
+              </div>
+            {% else %}
+              <div class="mt-3">
+                <a href="/admin/users" class="text-decoration-none">← Back to Users</a>
+              </div>
+            {% endif %}
+          </form>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-body">
+          <h5 class="card-title">Permission Guide</h5>
+          <ul class="mb-0">
+            <li><strong>View Calendar:</strong> User can view the property's calendar and events</li>
+            <li><strong>Create Reservation:</strong> User can create new reservations for the property</li>
+            <li><strong>Add Cleaning:</strong> User can schedule cleaning tasks for the property</li>
+            <li><strong>Add Maintenance:</strong> User can schedule maintenance tasks for the property</li>
+          </ul>
+          <p class="text-muted mt-3 mb-0">
+            <small>Note: Admin users automatically have full access to all properties and all actions.</small>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <style>
+    .form-check-input {
+      width: 1.5rem;
+      height: 1.5rem;
+      cursor: pointer;
+    }
+    
+    .table-bordered th,
+    .table-bordered td {
+      vertical-align: middle;
+    }
+  </style>
+{% endblock %}
+

@@ -7,6 +7,7 @@ use App\DAO\CleanerDAO;
 use App\DAO\ReservationDAO;
 use App\DAO\CleaningDAO;
 use App\DAO\MaintenanceDAO;
+use App\DAO\UserPropertyPermissionDAO;
 use App\Services\SyncService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -20,13 +21,31 @@ class DashboardApiController
         private readonly ReservationDAO $reservationDao,
         private readonly CleaningDAO $cleaningDao,
         private readonly MaintenanceDAO $maintenanceDao,
+        private readonly UserPropertyPermissionDAO $permissionDao,
         private readonly SyncService $syncService
     ) {
     }
 
     public function getProperties(Request $request, Response $response): Response
     {
-        $properties = $this->propertyDao->findAll();
+        $user = $request->getAttribute('user');
+        $userId = $user['user_id'] ?? null;
+        $isAdmin = $user['is_admin'] ?? false;
+
+        // Admins see all properties
+        if ($isAdmin) {
+            $properties = $this->propertyDao->findAll();
+        } else {
+            // Non-admins only see properties they have can_view_calendar permission for
+            $allProperties = $this->propertyDao->findAll();
+            $properties = [];
+            
+            foreach ($allProperties as $property) {
+                if ($this->permissionDao->hasPermission($userId, $property['property_id'], 'can_view_calendar')) {
+                    $properties[] = $property;
+                }
+            }
+        }
 
         $response = new SlimResponse();
         $response->getBody()->write(json_encode(['properties' => $properties]));
@@ -49,11 +68,48 @@ class DashboardApiController
         $endDate = $params['end_date'] ?? date('Y-m-d', strtotime('+1 month'));
         $propertyId = $params['property_id'] ?? null;
 
+        $user = $request->getAttribute('user');
+        $userId = $user['user_id'] ?? null;
+        $isAdmin = $user['is_admin'] ?? false;
+
+        // Check permission if a specific property is requested
+        if ($propertyId && !$isAdmin) {
+            if (!$this->permissionDao->hasPermission($userId, (int)$propertyId, 'can_view_calendar')) {
+                // User doesn't have permission to view this property
+                $response = new SlimResponse();
+                $response->getBody()->write(json_encode([
+                    'error' => 'You do not have permission to view this property',
+                    'reservations' => [],
+                    'cleaning' => [],
+                    'maintenance' => []
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+        }
+
         $events = [
             'reservations' => $this->reservationDao->findByDateRange($startDate, $endDate, $propertyId),
             'cleaning' => $this->cleaningDao->findByDateRange($startDate, $endDate, $propertyId),
             'maintenance' => $this->maintenanceDao->findByDateRange($startDate, $endDate, $propertyId)
         ];
+
+        // If no specific property requested and user is not admin, filter events to only allowed properties
+        if (!$propertyId && !$isAdmin) {
+            $events['reservations'] = array_filter($events['reservations'], function($event) use ($userId) {
+                return $this->permissionDao->hasPermission($userId, $event['property_id'], 'can_view_calendar');
+            });
+            $events['cleaning'] = array_filter($events['cleaning'], function($event) use ($userId) {
+                return $this->permissionDao->hasPermission($userId, $event['property_id'], 'can_view_calendar');
+            });
+            $events['maintenance'] = array_filter($events['maintenance'], function($event) use ($userId) {
+                return $this->permissionDao->hasPermission($userId, $event['property_id'], 'can_view_calendar');
+            });
+            
+            // Re-index arrays after filtering
+            $events['reservations'] = array_values($events['reservations']);
+            $events['cleaning'] = array_values($events['cleaning']);
+            $events['maintenance'] = array_values($events['maintenance']);
+        }
 
         $response = new SlimResponse();
         $response->getBody()->write(json_encode($events));
@@ -201,6 +257,8 @@ class DashboardApiController
     {
         $data = (array) $request->getParsedBody();
         $user = $request->getAttribute('user');
+        $userId = $user['user_id'] ?? null;
+        $isAdmin = $user['is_admin'] ?? false;
 
         $propertyId = $data['property_id'] ?? null;
         $name = trim($data['reservation_name'] ?? '');
@@ -214,6 +272,13 @@ class DashboardApiController
             $response = new SlimResponse();
             $response->getBody()->write(json_encode(['error' => 'Missing required fields']));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Check permission
+        if (!$isAdmin && !$this->permissionDao->hasPermission($userId, (int)$propertyId, 'can_create_reservation')) {
+            $response = new SlimResponse();
+            $response->getBody()->write(json_encode(['error' => 'You do not have permission to create reservations for this property']));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
         // Validate that new reservations cannot be created in the past
@@ -255,6 +320,8 @@ class DashboardApiController
     {
         $data = (array) $request->getParsedBody();
         $user = $request->getAttribute('user');
+        $userId = $user['user_id'] ?? null;
+        $isAdmin = $user['is_admin'] ?? false;
 
         $propertyId = $data['property_id'] ?? null;
         $cleaningDate = $data['cleaning_date'] ?? null;
@@ -266,6 +333,13 @@ class DashboardApiController
             $response = new SlimResponse();
             $response->getBody()->write(json_encode(['error' => 'Missing required fields']));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Check permission
+        if (!$isAdmin && !$this->permissionDao->hasPermission($userId, (int)$propertyId, 'can_add_cleaning')) {
+            $response = new SlimResponse();
+            $response->getBody()->write(json_encode(['error' => 'You do not have permission to add cleaning for this property']));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
         // Validate that new cleaning events cannot be created in the past
@@ -300,17 +374,25 @@ class DashboardApiController
     {
         $data = (array) $request->getParsedBody();
         $user = $request->getAttribute('user');
+        $userId = $user['user_id'] ?? null;
+        $isAdmin = $user['is_admin'] ?? false;
 
         $propertyId = $data['property_id'] ?? null;
         $startDate = $data['maintenance_start_date'] ?? null;
         $endDate = $data['maintenance_end_date'] ?? null;
         $description = trim($data['maintenance_description'] ?? '');
-        $maintenanceType = $data['maintenance_type'] ?? null;
 
         if (!$propertyId || !$startDate || !$endDate || !$description) {
             $response = new SlimResponse();
             $response->getBody()->write(json_encode(['error' => 'Missing required fields']));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Check permission
+        if (!$isAdmin && !$this->permissionDao->hasPermission($userId, (int)$propertyId, 'can_add_maintenance')) {
+            $response = new SlimResponse();
+            $response->getBody()->write(json_encode(['error' => 'You do not have permission to add maintenance for this property']));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
         // Validate that new maintenance events cannot be created in the past
@@ -327,7 +409,6 @@ class DashboardApiController
                 $startDate,
                 $endDate,
                 $description,
-                $maintenanceType,
                 $user['user_id'] ?? null
             );
             
@@ -344,6 +425,9 @@ class DashboardApiController
     public function deleteReservation(Request $request, Response $response, array $args): Response
     {
         $id = $args['id'] ?? null;
+        $user = $request->getAttribute('user');
+        $userId = $user['user_id'] ?? null;
+        $isAdmin = $user['is_admin'] ?? false;
 
         if (!$id) {
             $response = new SlimResponse();
@@ -352,12 +436,28 @@ class DashboardApiController
         }
 
         try {
+            // Get the reservation to check property ownership
+            $reservation = $this->reservationDao->findById($id);
+            
+            if (!$reservation) {
+                $response = new SlimResponse();
+                $response->getBody()->write(json_encode(['error' => 'Reservation not found']));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            // Check permission
+            if (!$isAdmin && !$this->permissionDao->hasPermission($userId, $reservation['property_id'], 'can_create_reservation')) {
+                $response = new SlimResponse();
+                $response->getBody()->write(json_encode(['error' => 'You do not have permission to delete reservations for this property']));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+
             $deleted = $this->reservationDao->deleteById($id);
 
             if (!$deleted) {
                 $response = new SlimResponse();
-                $response->getBody()->write(json_encode(['error' => 'Reservation not found']));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+                $response->getBody()->write(json_encode(['error' => 'Failed to delete reservation']));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
 
             $response = new SlimResponse();
@@ -373,6 +473,9 @@ class DashboardApiController
     public function deleteCleaning(Request $request, Response $response, array $args): Response
     {
         $id = $args['id'] ?? null;
+        $user = $request->getAttribute('user');
+        $userId = $user['user_id'] ?? null;
+        $isAdmin = $user['is_admin'] ?? false;
 
         if (!$id) {
             $response = new SlimResponse();
@@ -381,12 +484,28 @@ class DashboardApiController
         }
 
         try {
+            // Get the cleaning to check property ownership
+            $cleaning = $this->cleaningDao->findById($id);
+            
+            if (!$cleaning) {
+                $response = new SlimResponse();
+                $response->getBody()->write(json_encode(['error' => 'Cleaning not found']));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            // Check permission
+            if (!$isAdmin && !$this->permissionDao->hasPermission($userId, $cleaning['property_id'], 'can_add_cleaning')) {
+                $response = new SlimResponse();
+                $response->getBody()->write(json_encode(['error' => 'You do not have permission to delete cleaning for this property']));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+
             $deleted = $this->cleaningDao->deleteById($id);
 
             if (!$deleted) {
                 $response = new SlimResponse();
-                $response->getBody()->write(json_encode(['error' => 'Cleaning not found']));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+                $response->getBody()->write(json_encode(['error' => 'Failed to delete cleaning']));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
 
             $response = new SlimResponse();
@@ -402,6 +521,9 @@ class DashboardApiController
     public function deleteMaintenance(Request $request, Response $response, array $args): Response
     {
         $id = $args['id'] ?? null;
+        $user = $request->getAttribute('user');
+        $userId = $user['user_id'] ?? null;
+        $isAdmin = $user['is_admin'] ?? false;
 
         if (!$id) {
             $response = new SlimResponse();
@@ -410,12 +532,28 @@ class DashboardApiController
         }
 
         try {
+            // Get the maintenance to check property ownership
+            $maintenance = $this->maintenanceDao->findById($id);
+            
+            if (!$maintenance) {
+                $response = new SlimResponse();
+                $response->getBody()->write(json_encode(['error' => 'Maintenance not found']));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            // Check permission
+            if (!$isAdmin && !$this->permissionDao->hasPermission($userId, $maintenance['property_id'], 'can_add_maintenance')) {
+                $response = new SlimResponse();
+                $response->getBody()->write(json_encode(['error' => 'You do not have permission to delete maintenance for this property']));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+
             $deleted = $this->maintenanceDao->deleteById($id);
 
             if (!$deleted) {
                 $response = new SlimResponse();
-                $response->getBody()->write(json_encode(['error' => 'Maintenance not found']));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+                $response->getBody()->write(json_encode(['error' => 'Failed to delete maintenance']));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
 
             $response = new SlimResponse();
