@@ -67,6 +67,10 @@ class ICalExportController
         $standardStart = $this->config::get('time_windows.standard_start', '15:00:00');
         $standardEnd = $this->config::get('time_windows.standard_end', '12:00:00');
         $lateEnd = $this->config::get('time_windows.late_end_time', '22:00:00');
+        
+        // Get pre/post reservation buffer days for internal reservations
+        $preReservationDays = (int) $this->config::get('time_windows.pre_reservation_days', 0);
+        $postReservationDays = (int) $this->config::get('time_windows.post_reservation_days', 0);
 
         // Add reservations
         foreach ($reservations as $reservation) {
@@ -78,18 +82,30 @@ class ICalExportController
                 $lines[] = 'DESCRIPTION:' . $this->escapeICalText($reservation['reservation_description']);
             }
             
-            // Calculate start datetime
+            // Calculate start datetime with pre-reservation buffer
+            // For internal reservations, subtract pre_reservation_days from start date
+            $startDateObj = new \DateTime($reservation['reservation_start_date'], new \DateTimeZone($property['timezone']));
+            if ($preReservationDays > 0) {
+                $startDateObj->modify('-' . $preReservationDays . ' days');
+            }
+            $adjustedStartDate = $startDateObj->format('Y-m-d');
+            
             $startTime = $reservation['reservation_start_time'] === 'early' ? $earlyStart : $standardStart;
-            $startDateTime = $this->formatICalDateTime($reservation['reservation_start_date'], $startTime, $property['timezone']);
+            $startDateTime = $this->formatICalDateTime($adjustedStartDate, $startTime, $property['timezone']);
             $lines[] = 'DTSTART:' . $startDateTime;
             
-            // Calculate end datetime
+            // Calculate end datetime with post-reservation buffer
+            // Add post_reservation_days + 1 day to end date for AirBNB compatibility (DTEND is exclusive)
+            $endDateObj = new \DateTime($reservation['reservation_end_date'], new \DateTimeZone($property['timezone']));
+            $endDateObj->modify('+' . ($postReservationDays + 1) . ' days');
+            $adjustedEndDate = $endDateObj->format('Y-m-d');
+            
             if ($reservation['reservation_end_time'] === 'standard') {
-                // Standard end is 12:00 PM (checkout time) on the end date
-                $endDateTime = $this->formatICalDateTime($reservation['reservation_end_date'], $standardEnd, $property['timezone']);
+                // Standard end is 12:00 PM (checkout time) on the adjusted end date
+                $endDateTime = $this->formatICalDateTime($adjustedEndDate, $standardEnd, $property['timezone']);
             } else {
-                // Late end is 10:00 PM on the end date
-                $endDateTime = $this->formatICalDateTime($reservation['reservation_end_date'], $lateEnd, $property['timezone']);
+                // Late end is 10:00 PM on the adjusted end date
+                $endDateTime = $this->formatICalDateTime($adjustedEndDate, $lateEnd, $property['timezone']);
             }
             $lines[] = 'DTEND:' . $endDateTime;
             
