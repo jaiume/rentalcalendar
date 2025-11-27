@@ -178,7 +178,9 @@ return [
     AdminCleanerController::class => static function (ContainerInterface $container): AdminCleanerController {
         return new AdminCleanerController(
             $container->get(Twig::class),
-            $container->get(CleanerDAO::class)
+            $container->get(CleanerDAO::class),
+            $container->get(CleaningDAO::class),
+            $container->get(PropertyDAO::class)
         );
     },
     

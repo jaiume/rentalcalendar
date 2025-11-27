@@ -1,0 +1,313 @@
+{% extends "layout.twig" %}
+
+{% block title %}Cleaner Schedule | Admin | Rental Calendar{% endblock %}
+
+{% block content %}
+<section class="py-4">
+  <div class="container">
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h1 class="h2 mb-0">Cleaner Weekly Schedule</h1>
+            <p class="text-muted mb-0">Generate a text schedule for WhatsApp</p>
+          </div>
+          <a href="/admin/cleaners" class="btn btn-outline-secondary">Back to Cleaners</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-lg-4 mb-4">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Select Schedule</h5>
+            
+            <div class="mb-3">
+              <label for="cleanerSelect" class="form-label">Cleaner</label>
+              <select id="cleanerSelect" class="form-select">
+                <option value="">Select a cleaner...</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label for="weekSelect" class="form-label">Week Starting</label>
+              <select id="weekSelect" class="form-select" disabled>
+                <option value="">Select a cleaner first...</option>
+              </select>
+            </div>
+
+            <button id="generateBtn" class="btn btn-primary w-100" disabled>Generate Schedule</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="card-title mb-0">Schedule Preview</h5>
+              <button id="copyBtn" class="btn btn-sm btn-outline-primary" style="display: none;">
+                📋 Copy to Clipboard
+              </button>
+            </div>
+            
+            <div id="schedulePreview" class="border rounded p-3 bg-light" style="min-height: 400px; font-family: monospace; white-space: pre-wrap; display: none;"></div>
+            
+            <div id="emptyState" class="text-center py-5 text-muted">
+              <p class="mb-0">Select a cleaner and week to generate the schedule</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+#schedulePreview {
+  font-size: 14px;
+  line-height: 1.6;
+}
+</style>
+
+<script>
+class CleanerSchedule {
+  constructor() {
+    this.cleaners = [];
+    this.selectedCleaner = null;
+    this.selectedWeek = null;
+    this.init();
+  }
+
+  async init() {
+    await this.loadCleaners();
+    this.setupEventListeners();
+  }
+
+  async loadCleaners() {
+    try {
+      const response = await fetch('/api/dashboard/cleaners');
+      const data = await response.json();
+      this.cleaners = data.cleaners || [];
+      this.populateCleanerSelect();
+    } catch (error) {
+      console.error('Failed to load cleaners:', error);
+      alert('Failed to load cleaners');
+    }
+  }
+
+  populateCleanerSelect() {
+    const select = document.getElementById('cleanerSelect');
+    select.innerHTML = '<option value="">Select a cleaner...</option>';
+    
+    this.cleaners.forEach(cleaner => {
+      const option = document.createElement('option');
+      option.value = cleaner.cleaner_id;
+      option.textContent = `${cleaner.cleaner_name} (${cleaner.cleaner_initials})`;
+      select.appendChild(option);
+    });
+  }
+
+  async loadWeeks(cleanerId) {
+    try {
+      const response = await fetch(`/api/admin/cleaners/weeks?cleaner_id=${cleanerId}`);
+      const data = await response.json();
+      const weeks = data.weeks || [];
+      
+      const select = document.getElementById('weekSelect');
+      select.innerHTML = '';
+      
+      if (weeks.length === 0) {
+        select.innerHTML = '<option value="">No scheduled cleanings found</option>';
+        select.disabled = true;
+        return;
+      }
+      
+      select.disabled = false;
+      select.innerHTML = '<option value="">Select a week...</option>';
+      
+      weeks.forEach(weekStart => {
+        const option = document.createElement('option');
+        option.value = weekStart;
+        const weekEnd = this.getWeekEnd(weekStart);
+        option.textContent = `${this.formatDate(weekStart)} - ${this.formatDate(weekEnd)}`;
+        select.appendChild(option);
+      });
+    } catch (error) {
+      console.error('Failed to load weeks:', error);
+      alert('Failed to load available weeks');
+    }
+  }
+
+  getWeekEnd(weekStart) {
+    const date = new Date(weekStart + 'T00:00:00');
+    date.setDate(date.getDate() + 6);
+    return date.toISOString().split('T')[0];
+  }
+
+  formatDate(dateStr) {
+    const date = new Date(dateStr + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  formatDateForSchedule(dateStr) {
+    const date = new Date(dateStr + 'T00:00:00');
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+    const dateFormatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${dayName}, ${dateFormatted}`;
+  }
+
+  setupEventListeners() {
+    document.getElementById('cleanerSelect').addEventListener('change', async (e) => {
+      this.selectedCleaner = e.target.value;
+      this.selectedWeek = null;
+      document.getElementById('weekSelect').value = '';
+      document.getElementById('generateBtn').disabled = true;
+      this.hideSchedule();
+      
+      if (this.selectedCleaner) {
+        await this.loadWeeks(this.selectedCleaner);
+      } else {
+        const weekSelect = document.getElementById('weekSelect');
+        weekSelect.innerHTML = '<option value="">Select a cleaner first...</option>';
+        weekSelect.disabled = true;
+      }
+    });
+
+    document.getElementById('weekSelect').addEventListener('change', (e) => {
+      this.selectedWeek = e.target.value;
+      document.getElementById('generateBtn').disabled = !this.selectedWeek;
+      this.hideSchedule();
+    });
+
+    document.getElementById('generateBtn').addEventListener('click', () => {
+      this.generateSchedule();
+    });
+
+    document.getElementById('copyBtn').addEventListener('click', () => {
+      this.copyToClipboard();
+    });
+  }
+
+  async generateSchedule() {
+    if (!this.selectedCleaner || !this.selectedWeek) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/admin/cleaners/schedule?cleaner_id=${this.selectedCleaner}&week_start=${this.selectedWeek}`
+      );
+      const data = await response.json();
+      
+      if (data.error) {
+        alert('Error: ' + data.error);
+        return;
+      }
+
+      this.renderSchedule(data);
+    } catch (error) {
+      console.error('Failed to generate schedule:', error);
+      alert('Failed to generate schedule');
+    }
+  }
+
+  renderSchedule(data) {
+    const schedule = data.schedule;
+    const weekStart = data.week_start;
+
+    // Find cleaner name
+    const cleaner = this.cleaners.find(c => c.cleaner_id == this.selectedCleaner);
+    const cleanerName = cleaner ? cleaner.cleaner_name : 'Cleaner';
+
+    // Generate compact text schedule
+    let text = `${cleanerName} - Week Starting ${this.formatDate(weekStart)}\n`;
+    text += `${'='.repeat(40)}\n\n`;
+
+    // Create array of all 7 days in the week
+    const days = [];
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(weekStart + 'T00:00:00');
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+      days.push(dateStr);
+    }
+
+    // For each day, show cleanings in compact format
+    days.forEach((dateStr, index) => {
+      const dayEvents = schedule[dateStr] || [];
+      const dayName = dayNames[index];
+      const isWeekend = index === 5 || index === 6; // Saturday or Sunday
+      
+      // Skip weekends if no cleanings
+      if (isWeekend && dayEvents.length === 0) {
+        return;
+      }
+      
+      if (dayEvents.length === 0) {
+        text += `${dayName} - No cleanings\n`;
+      } else {
+        dayEvents.forEach((event, eventIndex) => {
+          if (eventIndex === 0) {
+            text += `${dayName} - ${event.property_name}`;
+          } else {
+            text += `${' '.repeat(dayName.length)} - ${event.property_name}`;
+          }
+          
+          if (event.notes) {
+            text += ` (${event.notes})`;
+          }
+          text += `\n`;
+        });
+      }
+    });
+
+    // Show the schedule
+    const preview = document.getElementById('schedulePreview');
+    preview.textContent = text;
+    preview.style.display = 'block';
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('copyBtn').style.display = 'inline-block';
+  }
+
+  hideSchedule() {
+    document.getElementById('schedulePreview').style.display = 'none';
+    document.getElementById('emptyState').style.display = 'block';
+    document.getElementById('copyBtn').style.display = 'none';
+  }
+
+  async copyToClipboard() {
+    const text = document.getElementById('schedulePreview').textContent;
+    
+    try {
+      await navigator.clipboard.writeText(text);
+      
+      // Show feedback
+      const btn = document.getElementById('copyBtn');
+      const originalText = btn.textContent;
+      btn.textContent = '✓ Copied!';
+      btn.classList.remove('btn-outline-primary');
+      btn.classList.add('btn-success');
+      
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-primary');
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      alert('Failed to copy to clipboard. Please select and copy manually.');
+    }
+  }
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', () => {
+  new CleanerSchedule();
+});
+</script>
+{% endblock %}
+

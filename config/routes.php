@@ -74,10 +74,13 @@ return function (App $app): void {
         // Cleaners
         $group->get('/admin/cleaners', [AdminCleanerController::class, 'index'])->setName('admin.cleaners.index');
         $group->get('/admin/cleaners/create', [AdminCleanerController::class, 'create'])->setName('admin.cleaners.create');
+        $group->get('/admin/cleaners/schedule', [AdminCleanerController::class, 'schedule'])->setName('admin.cleaners.schedule');
         $group->post('/admin/cleaners', [AdminCleanerController::class, 'store'])->setName('admin.cleaners.store');
         $group->get('/admin/cleaners/{id}/edit', [AdminCleanerController::class, 'edit'])->setName('admin.cleaners.edit');
         $group->post('/admin/cleaners/{id}', [AdminCleanerController::class, 'update'])->setName('admin.cleaners.update');
         $group->get('/admin/cleaners/{id}/delete', [AdminCleanerController::class, 'delete'])->setName('admin.cleaners.delete');
+        $group->get('/api/admin/cleaners/schedule', [AdminCleanerController::class, 'getScheduleData'])->setName('api.admin.cleaners.schedule');
+        $group->get('/api/admin/cleaners/weeks', [AdminCleanerController::class, 'getAvailableWeeks'])->setName('api.admin.cleaners.weeks');
     })
     ->add(AuthenticationMiddleware::class)
     ->add($container->get(TwigGlobalMiddleware::class));
