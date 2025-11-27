@@ -436,6 +436,14 @@
   background: #f8f9fa;
 }
 
+.multi-calendar-cell.weekend {
+  background: #f9f9fb;
+}
+
+.multi-calendar-cell.weekend.today {
+  background: #e3f2fd;
+}
+
 .multi-calendar-event {
   width: 100%;
   padding: 2px 4px;
@@ -808,7 +816,8 @@ class Dashboard {
       const dayOfWeek = date.getDay();
       const dayInitial = dayInitials[dayOfWeek];
       const isTodayHeader = dateStr === todayStr;
-      headerHtml += `<th class="multi-calendar-cell${isTodayHeader ? ' today' : ''}">
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      headerHtml += `<th class="multi-calendar-cell${isTodayHeader ? ' today' : ''}${isWeekend ? ' weekend' : ''}">
         <div style="font-size: 0.7rem; color: #6c757d; font-weight: normal;">${dayInitial}</div>
         <div>${day}</div>
       </th>`;
@@ -846,6 +855,10 @@ class Dashboard {
         cell.className = 'multi-calendar-cell';
         if (dateStr === todayStr) {
           cell.classList.add('today');
+        }
+        const dayOfWeek = date.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          cell.classList.add('weekend');
         }
         cell.dataset.propertyId = property.property_id;
         cell.dataset.date = dateStr;
