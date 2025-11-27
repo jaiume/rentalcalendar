@@ -65,9 +65,11 @@
           <div class="d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Multi Property Calendar</h5>
             <div class="d-flex gap-2 align-items-center">
-              <button class="btn btn-sm btn-outline-secondary" id="prevMonthMulti">← Prev</button>
+              <button class="btn btn-sm btn-outline-secondary" id="prevMonthMulti">← Month</button>
+              <button class="btn btn-sm btn-outline-secondary" id="prevHalfMonthMulti">← Half</button>
               <span id="currentMonthMulti" class="fw-bold"></span>
-              <button class="btn btn-sm btn-outline-secondary" id="nextMonthMulti">Next →</button>
+              <button class="btn btn-sm btn-outline-secondary" id="nextHalfMonthMulti">Half →</button>
+              <button class="btn btn-sm btn-outline-secondary" id="nextMonthMulti">Month →</button>
               <button class="btn btn-sm btn-outline-primary" id="todayBtnMulti">Today</button>
           </div>
         </div>
@@ -679,6 +681,8 @@ class Dashboard {
     // Month navigation
     document.getElementById('prevMonthMulti')?.addEventListener('click', () => this.changeMonth(-1));
     document.getElementById('nextMonthMulti')?.addEventListener('click', () => this.changeMonth(1));
+    document.getElementById('prevHalfMonthMulti')?.addEventListener('click', () => this.changeByDays(-15));
+    document.getElementById('nextHalfMonthMulti')?.addEventListener('click', () => this.changeByDays(15));
     document.getElementById('prevMonthSingle')?.addEventListener('click', () => this.changeMonth(-1));
     document.getElementById('nextMonthSingle')?.addEventListener('click', () => this.changeMonth(1));
     document.getElementById('todayBtnMulti')?.addEventListener('click', () => this.goToToday());
@@ -757,12 +761,20 @@ class Dashboard {
   }
 
   changeMonth(delta) {
+    // Always snap to the 1st of the target month for full month view
     this.currentDate.setMonth(this.currentDate.getMonth() + delta);
+    this.currentDate.setDate(1);
+    this.loadView();
+  }
+
+  changeByDays(days) {
+    this.currentDate.setDate(this.currentDate.getDate() + days);
     this.loadView();
   }
 
   goToToday() {
     this.currentDate = new Date();
+    this.currentDate.setDate(1); // Start from 1st of current month
     this.loadView();
   }
 
@@ -789,19 +801,44 @@ class Dashboard {
       await this.loadProperties();
     }
 
-    const range = this.getDateRange();
-    await this.loadEvents(range.start, range.end);
+    // If currentDate is the 1st of a month, show the full month
+    // Otherwise, show 30 days starting from currentDate
+    const startDate = new Date(this.currentDate);
+    startDate.setHours(0, 0, 0, 0);
+    
+    let daysToShow;
+    let endDate;
+    
+    if (startDate.getDate() === 1) {
+      // Show full month
+      daysToShow = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
+      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+    } else {
+      // Show 30 days from current position
+      daysToShow = 30;
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + daysToShow - 1);
+    }
 
-    const monthName = this.currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    // Load events for the date range
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+    await this.loadEvents(startDateStr, endDateStr);
+
+    // Update month display to show the range
     const monthElement = document.getElementById('currentMonthMulti');
     if (monthElement) {
-      monthElement.textContent = monthName;
+      const startMonth = startDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      const endMonth = endDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      if (startMonth === endMonth) {
+        monthElement.textContent = startMonth;
+      } else {
+        monthElement.textContent = `${startMonth} - ${endMonth}`;
+      }
     } else {
       console.error('currentMonthMulti element not found');
     }
 
-    // Get days in month and today's date for highlighting
-    const daysInMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0).getDate();
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
 
@@ -809,12 +846,14 @@ class Dashboard {
     const header = document.getElementById('multiCalendarHeader');
     const dayInitials = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     let headerHtml = '<tr><th class="multi-calendar-property">Property</th>';
-    for (let i = 0; i < daysInMonth; i++) {
-      const day = i + 1;
-      const date = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), day);
+    
+    for (let i = 0; i < daysToShow; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
       const dateStr = date.toISOString().split('T')[0];
       const dayOfWeek = date.getDay();
       const dayInitial = dayInitials[dayOfWeek];
+      const day = date.getDate();
       const isTodayHeader = dateStr === todayStr;
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
       headerHtml += `<th class="multi-calendar-cell${isTodayHeader ? ' today' : ''}${isWeekend ? ' weekend' : ''}">
@@ -834,7 +873,7 @@ class Dashboard {
       : this.properties;
 
     if (propsToShow.length === 0) {
-      body.innerHTML = '<tr><td colspan="' + (daysInMonth + 1) + '" class="text-center text-muted py-4">No properties available. Please ensure you have access to at least one property.</td></tr>';
+      body.innerHTML = '<tr><td colspan="' + (daysToShow + 1) + '" class="text-center text-muted py-4">No properties available. Please ensure you have access to at least one property.</td></tr>';
       return;
     }
 
@@ -846,9 +885,9 @@ class Dashboard {
       row.innerHTML = `<td class="multi-calendar-property">${property.property_name}</td>`;
       
       const cells = [];
-      for (let i = 0; i < daysInMonth; i++) {
-        const day = i + 1;
-        const date = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), day);
+      for (let i = 0; i < daysToShow; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
         const dateStr = date.toISOString().split('T')[0];
         
         const cell = document.createElement('td');
