@@ -8,3 +8,5 @@ CHANGE COLUMN created_at last_touched DATETIME NOT NULL DEFAULT CURRENT_TIMESTAM
 
 
 
+
+
