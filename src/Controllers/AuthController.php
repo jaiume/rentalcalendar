@@ -240,10 +240,20 @@ HTML;
             $this->authService->deleteToken($token);
         }
 
-        // Build cookie deletion header
+        // Build cookie deletion header with same attributes as creation
+        // Per RFC 6265, deletion must match all attributes of the original cookie
+        $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+        
         $cookieValue = urlencode($cookieName) . '=';
         $cookieValue .= '; Expires=' . gmdate('D, d M Y H:i:s T', time() - 3600);
         $cookieValue .= '; Path=/';
+        $cookieValue .= '; HttpOnly';
+        $cookieValue .= '; SameSite=Lax';
+        if ($secure) {
+            $cookieValue .= '; Secure';
+        }
+
+        LogService::info('Logout: cookie deletion header prepared', ['secure' => $secure]);
 
         $response = new SlimResponse();
         return $response
