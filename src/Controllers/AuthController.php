@@ -126,18 +126,22 @@ class AuthController
     private function setAuthCookieAndRedirect(string $token): Response
     {
         $cookieName = $this->config::get('auth.cookie_name', 'auth_token');
-        $cookieParams = [
-            'expires' => time() + (int) $this->config::get('auth.token_expiry', 604800),
-            'path' => '/',
-            'httponly' => true,
-            'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
-            'samesite' => 'Lax',
-        ];
+        $expires = time() + (int) $this->config::get('auth.token_expiry', 604800);
+        $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+        
+        // Build cookie value using standard format
+        $cookieValue = urlencode($cookieName) . '=' . urlencode($token);
+        $cookieValue .= '; Expires=' . gmdate('D, d M Y H:i:s T', $expires);
+        $cookieValue .= '; Path=/';
+        $cookieValue .= '; HttpOnly';
+        $cookieValue .= '; SameSite=Lax';
+        if ($secure) {
+            $cookieValue .= '; Secure';
+        }
 
         $response = new SlimResponse();
-        setcookie($cookieName, $token, $cookieParams);
-
         return $response
+            ->withHeader('Set-Cookie', $cookieValue)
             ->withHeader('Location', '/dashboard')
             ->withStatus(302);
     }
@@ -215,13 +219,14 @@ HTML;
             $this->authService->deleteToken($token);
         }
 
-        setcookie($cookieName, '', [
-            'expires' => time() - 3600,
-            'path' => '/',
-        ]);
+        // Build cookie deletion header
+        $cookieValue = urlencode($cookieName) . '=';
+        $cookieValue .= '; Expires=' . gmdate('D, d M Y H:i:s T', time() - 3600);
+        $cookieValue .= '; Path=/';
 
         $response = new SlimResponse();
         return $response
+            ->withHeader('Set-Cookie', $cookieValue)
             ->withHeader('Location', '/login')
             ->withStatus(302);
     }

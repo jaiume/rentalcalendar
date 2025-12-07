@@ -119,7 +119,7 @@ class ICalExportController
             $lines[] = 'UID:maintenance-' . $maint['property_maintenance_id'];
             $lines[] = 'SUMMARY:' . $this->escapeICalText($maint['maintenance_description']);
             
-            if ($maint['maintenance_type']) {
+            if (!empty($maint['maintenance_type'])) {
                 $lines[] = 'DESCRIPTION:' . $this->escapeICalText($maint['maintenance_type']);
             }
             

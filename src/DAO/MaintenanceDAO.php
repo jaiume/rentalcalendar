@@ -60,7 +60,8 @@ class MaintenanceDAO extends BaseDAO
                 property_maintenance_id,
                 maintenance_start_date,
                 maintenance_end_date,
-                maintenance_description
+                maintenance_description,
+                maintenance_type
                 FROM property_maintenance
                 WHERE property_id = :property_id
                 ORDER BY maintenance_start_date';
