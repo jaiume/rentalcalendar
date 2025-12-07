@@ -165,7 +165,7 @@ class ReservationDAO extends BaseDAO
     public function updateLastChecked(int $reservationId): bool
     {
         try {
-            $stmt = $this->db->prepare(
+            image.png            $stmt = $this->db->prepare(
                 'UPDATE reservations SET sync_partner_last_checked = NOW() WHERE reservation_id = :id'
             );
             $stmt->execute(['id' => $reservationId]);
