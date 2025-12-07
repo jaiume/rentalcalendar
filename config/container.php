@@ -6,6 +6,7 @@ use App\Controllers\AdminPropertyLinkController;
 use App\Controllers\AdminUserController;
 use App\Controllers\AuthController;
 use App\Controllers\DashboardApiController;
+use App\Controllers\DebugController;
 use App\Controllers\HomeController;
 use App\Controllers\ICalExportController;
 use App\DAO\AuthTokenDAO;
@@ -208,6 +209,13 @@ return [
             $container->get(ConfigService::class),
             $container->get(PropertyDAO::class),
             $container->get(UserPropertyPermissionDAO::class)
+        );
+    },
+    
+    DebugController::class => static function (ContainerInterface $container): DebugController {
+        return new DebugController(
+            $container->get(Twig::class),
+            $container->get(ConfigService::class)
         );
     },
 ];

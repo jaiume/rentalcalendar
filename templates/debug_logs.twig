@@ -1,0 +1,94 @@
+{% extends "base.twig" %}
+
+{% block title %}Debug Logs{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Debug Logs</h1>
+        <div>
+            <a href="/debug/info" class="btn btn-info btn-sm">Server Info</a>
+            <form method="post" action="/debug/logs/clear" class="d-inline" onsubmit="return confirm('Clear all logs?');">
+                <button type="submit" class="btn btn-danger btn-sm">Clear Logs</button>
+            </form>
+        </div>
+    </div>
+
+    {% if logs is empty %}
+        <div class="alert alert-info">
+            No log entries found.
+        </div>
+    {% else %}
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Showing last {{ logs|length }} log entries</span>
+                <div>
+                    <a href="?lines=100" class="btn btn-sm btn-outline-secondary">100</a>
+                    <a href="?lines=200" class="btn btn-sm btn-outline-secondary">200</a>
+                    <a href="?lines=500" class="btn btn-sm btn-outline-secondary">500</a>
+                    <a href="?lines=1000" class="btn btn-sm btn-outline-secondary">1000</a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div style="max-height: 80vh; overflow-y: auto; font-family: monospace; font-size: 0.85rem;">
+                    <table class="table table-sm table-striped mb-0">
+                        <tbody>
+                            {% for log in logs %}
+                                <tr class="
+                                    {% if 'ERROR' in log %}table-danger
+                                    {% elseif 'WARNING' in log %}table-warning
+                                    {% elseif 'INFO' in log %}table-info
+                                    {% elseif 'DEBUG' in log %}table-light
+                                    {% endif %}
+                                ">
+                                    <td style="white-space: pre-wrap; word-break: break-all;">{{ log }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="mt-3">
+        <small class="text-muted">
+            Auto-refresh: 
+            <button id="autoRefreshBtn" class="btn btn-sm btn-outline-primary" onclick="toggleAutoRefresh()">
+                Start (10s)
+            </button>
+        </small>
+    </div>
+</div>
+
+<script>
+let autoRefreshInterval = null;
+
+function toggleAutoRefresh() {
+    const btn = document.getElementById('autoRefreshBtn');
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        btn.textContent = 'Start (10s)';
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-primary');
+    } else {
+        autoRefreshInterval = setInterval(() => {
+            window.location.reload();
+        }, 10000);
+        btn.textContent = 'Stop';
+        btn.classList.remove('btn-outline-primary');
+        btn.classList.add('btn-success');
+    }
+}
+
+// Scroll to bottom on load
+window.addEventListener('load', () => {
+    const container = document.querySelector('.card-body > div');
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
+});
+</script>
+{% endblock %}
+

@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Services\AuthenticationService;
 use App\Services\ConfigService;
+use App\Services\LogService;
 use App\Services\UtilityService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -92,15 +93,20 @@ class AuthController
         $data = (array) $request->getParsedBody();
         $code = trim($data['code'] ?? '');
 
+        LogService::debug('Code verification attempt', ['code_length' => strlen($code)]);
+
         if (!$code || strlen($code) !== 6 || !ctype_digit($code)) {
+            LogService::debug('Code verification failed: invalid format');
             return $this->redirectWithError('/login/verify', 'Please enter a valid 6-digit code.');
         }
 
         $token = $this->authService->verifyLoginCode($code);
         if (!$token) {
+            LogService::warning('Code verification failed: invalid or expired code');
             return $this->redirectWithError('/login/verify', 'Invalid or expired code. Please try again.');
         }
 
+        LogService::info('Code verified successfully, setting cookie and redirecting');
         return $this->setAuthCookieAndRedirect($token);
     }
 
@@ -111,15 +117,20 @@ class AuthController
             $token = $params['token'] ?? null;
         }
 
+        LogService::debug('Direct login attempt', ['has_token' => !empty($token)]);
+
         if (!$token) {
+            LogService::warning('Direct login failed: no token provided');
             return $this->redirectWithError('/login', 'Invalid login link.');
         }
 
         $sessionToken = $this->authService->verifyLoginToken($token);
         if (!$sessionToken) {
+            LogService::warning('Direct login failed: invalid or expired token');
             return $this->redirectWithError('/login', 'Invalid or expired login link. Please request a new one.');
         }
 
+        LogService::info('Direct login successful, setting cookie and redirecting');
         return $this->setAuthCookieAndRedirect($sessionToken);
     }
 
@@ -128,6 +139,14 @@ class AuthController
         $cookieName = $this->config::get('auth.cookie_name', 'auth_token');
         $expires = time() + (int) $this->config::get('auth.token_expiry', 604800);
         $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+        
+        LogService::debug('Setting auth cookie', [
+            'cookie_name' => $cookieName,
+            'expires_in' => (int) $this->config::get('auth.token_expiry', 604800),
+            'secure' => $secure,
+            'https_header' => $_SERVER['HTTPS'] ?? 'not set',
+            'server_port' => $_SERVER['SERVER_PORT'] ?? 'not set'
+        ]);
         
         // Build cookie value using standard format
         $cookieValue = urlencode($cookieName) . '=' . urlencode($token);
@@ -138,6 +157,8 @@ class AuthController
         if ($secure) {
             $cookieValue .= '; Secure';
         }
+
+        LogService::debug('Cookie header prepared', ['cookie_header_length' => strlen($cookieValue)]);
 
         $response = new SlimResponse();
         return $response

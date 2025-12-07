@@ -7,6 +7,7 @@ use App\Controllers\AdminPropertyLinkController;
 use App\Controllers\AdminUserController;
 use App\Controllers\AuthController;
 use App\Controllers\DashboardApiController;
+use App\Controllers\DebugController;
 use App\Controllers\HomeController;
 use App\Controllers\ICalExportController;
 use App\Middleware\AuthenticationMiddleware;
@@ -26,6 +27,11 @@ return function (App $app): void {
     $app->get('/login/verify', [AuthController::class, 'showCodeForm'])->setName('login.verify.form');
     $app->post('/login/verify', [AuthController::class, 'handleCodeVerification'])->setName('login.verify.submit');
     $app->get('/logout', [AuthController::class, 'logout'])->setName('logout');
+
+    // Debug routes (only accessible when debug mode is enabled)
+    $app->get('/debug/logs', [DebugController::class, 'showLogs'])->setName('debug.logs');
+    $app->post('/debug/logs/clear', [DebugController::class, 'clearLogs'])->setName('debug.logs.clear');
+    $app->get('/debug/info', [DebugController::class, 'showInfo'])->setName('debug.info');
 
     $app->group('', function (RouteCollectorProxy $group) use ($container): void {
         $group->get('/', [HomeController::class, 'dashboard'])->setName('home');

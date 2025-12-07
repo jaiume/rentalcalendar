@@ -80,28 +80,36 @@ class AuthenticationService
     public function verifyLoginCode(string $code): ?string
     {
         try {
+            LogService::debug('Verifying login code');
             $this->loginCodeDao->cleanupExpired();
 
             $rows = $this->loginCodeDao->findNonExpiredCodes();
+            LogService::debug('Found non-expired codes', ['count' => count($rows)]);
 
             foreach ($rows as $row) {
                 if (password_verify($code, $row['code'])) {
                     // Code is valid, generate a new session token
                     $userId = $row['user_id'];
+                    LogService::info('Login code verified successfully', ['user_id' => $userId]);
+                    
                     $tokenLength = (int) $this->config::get('auth.token_length', 32);
                     $sessionToken = bin2hex(random_bytes(max(16, $tokenLength / 2)));
                     
+                    LogService::debug('Creating auth token for user', ['user_id' => $userId]);
                     $this->authTokenDao->create($userId, password_hash($sessionToken, PASSWORD_DEFAULT));
 
                     // Delete used login code
                     $this->loginCodeDao->deleteById($row['login_code_id']);
+                    LogService::debug('Deleted used login code');
 
                     return $sessionToken;
                 }
             }
 
+            LogService::warning('Login code verification failed: no matching code found');
             return null;
         } catch (\Throwable $e) {
+            LogService::exception($e, 'Error verifying login code');
             return null;
         }
     }
@@ -171,10 +179,17 @@ class AuthenticationService
             $expirySeconds = (int) $this->config::get('auth.auth_token_expiry', 604800);
             $rows = $this->authTokenDao->findAllNonExpiredWithUserDetails($expirySeconds);
 
+            LogService::debug('Verifying auth token', ['non_expired_tokens_count' => count($rows)]);
+
             foreach ($rows as $row) {
                 if (password_verify($token, $row['token'])) {
                     // Token is valid - update last_touched to extend expiry
                     $this->authTokenDao->updateLastTouched($row['auth_token_id']);
+
+                    LogService::debug('Auth token verified successfully', [
+                        'user_id' => $row['user_id'],
+                        'email' => $row['email']
+                    ]);
 
                     return [
                         'user_id' => $row['user_id'],
@@ -185,8 +200,10 @@ class AuthenticationService
                 }
             }
 
+            LogService::warning('Auth token verification failed: no matching token found');
             return null;
         } catch (\Throwable $e) {
+            LogService::exception($e, 'Error verifying auth token');
             return null;
         }
     }

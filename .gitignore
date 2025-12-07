@@ -4,6 +4,8 @@
 /.idea/
 /.vscode/
 /storage/logs/*
+/logs/*
+!logs/.gitkeep
 composer.lock
 node_modules/
 
