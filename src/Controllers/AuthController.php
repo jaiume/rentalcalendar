@@ -147,24 +147,26 @@ class AuthController
             'https_header' => $_SERVER['HTTPS'] ?? 'not set',
             'server_port' => $_SERVER['SERVER_PORT'] ?? 'not set',
             'token_length' => strlen($token),
-            'token_preview' => substr($token, 0, 10) . '...'
+            'token_preview' => substr($token, 0, 10) . '...',
+            'token_full' => $token
         ]);
         
-        // Build cookie value - don't URL encode the token as it's already a safe hex string
-        $cookieValue = $cookieName . '=' . $token;
-        $cookieValue .= '; Expires=' . gmdate('D, d M Y H:i:s T', $expires);
-        $cookieValue .= '; Path=/';
-        $cookieValue .= '; HttpOnly';
-        $cookieValue .= '; SameSite=Lax';
-        if ($secure) {
-            $cookieValue .= '; Secure';
-        }
-
-        LogService::debug('Cookie header prepared', ['cookie_header_length' => strlen($cookieValue)]);
+        // Use PHP's setcookie() function which handles encoding properly
+        $options = [
+            'expires' => $expires,
+            'path' => '/',
+            'domain' => '',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ];
+        
+        setcookie($cookieName, $token, $options);
+        
+        LogService::debug('Cookie set via setcookie() function', $options);
 
         $response = new SlimResponse();
         return $response
-            ->withHeader('Set-Cookie', $cookieValue)
             ->withHeader('Location', '/dashboard')
             ->withStatus(302);
     }
@@ -242,25 +244,23 @@ HTML;
             $this->authService->deleteToken($token);
         }
 
-        // Build cookie deletion header with same attributes as creation
-        // Per RFC 6265, deletion must match all attributes of the original cookie
+        // Delete cookie using setcookie with past expiration
         $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+        $options = [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'domain' => '',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ];
         
-        // Don't URL encode the cookie name - use it directly
-        $cookieValue = $cookieName . '=';
-        $cookieValue .= '; Expires=' . gmdate('D, d M Y H:i:s T', time() - 3600);
-        $cookieValue .= '; Path=/';
-        $cookieValue .= '; HttpOnly';
-        $cookieValue .= '; SameSite=Lax';
-        if ($secure) {
-            $cookieValue .= '; Secure';
-        }
-
-        LogService::info('Logout: cookie deletion header prepared', ['secure' => $secure]);
+        setcookie($cookieName, '', $options);
+        
+        LogService::info('Logout: cookie deleted', ['secure' => $secure]);
 
         $response = new SlimResponse();
         return $response
-            ->withHeader('Set-Cookie', $cookieValue)
             ->withHeader('Location', '/login')
             ->withStatus(302);
     }
