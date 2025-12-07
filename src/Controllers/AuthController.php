@@ -145,11 +145,13 @@ class AuthController
             'expires_in' => (int) $this->config::get('auth.token_expiry', 604800),
             'secure' => $secure,
             'https_header' => $_SERVER['HTTPS'] ?? 'not set',
-            'server_port' => $_SERVER['SERVER_PORT'] ?? 'not set'
+            'server_port' => $_SERVER['SERVER_PORT'] ?? 'not set',
+            'token_length' => strlen($token),
+            'token_preview' => substr($token, 0, 10) . '...'
         ]);
         
-        // Build cookie value using standard format
-        $cookieValue = urlencode($cookieName) . '=' . urlencode($token);
+        // Build cookie value - don't URL encode the token as it's already a safe hex string
+        $cookieValue = $cookieName . '=' . $token;
         $cookieValue .= '; Expires=' . gmdate('D, d M Y H:i:s T', $expires);
         $cookieValue .= '; Path=/';
         $cookieValue .= '; HttpOnly';
@@ -244,7 +246,8 @@ HTML;
         // Per RFC 6265, deletion must match all attributes of the original cookie
         $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
         
-        $cookieValue = urlencode($cookieName) . '=';
+        // Don't URL encode the cookie name - use it directly
+        $cookieValue = $cookieName . '=';
         $cookieValue .= '; Expires=' . gmdate('D, d M Y H:i:s T', time() - 3600);
         $cookieValue .= '; Path=/';
         $cookieValue .= '; HttpOnly';
