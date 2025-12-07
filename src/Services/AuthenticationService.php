@@ -95,8 +95,19 @@ class AuthenticationService
                     $tokenLength = (int) $this->config::get('auth.token_length', 32);
                     $sessionToken = bin2hex(random_bytes(max(16, $tokenLength / 2)));
                     
-                    LogService::debug('Creating auth token for user', ['user_id' => $userId]);
-                    $this->authTokenDao->create($userId, password_hash($sessionToken, PASSWORD_DEFAULT));
+                    LogService::debug('Creating auth token for user', [
+                        'user_id' => $userId,
+                        'token_length' => strlen($sessionToken),
+                        'token_preview' => substr($sessionToken, 0, 10) . '...'
+                    ]);
+                    
+                    $hashedToken = password_hash($sessionToken, PASSWORD_DEFAULT);
+                    $tokenId = $this->authTokenDao->create($userId, $hashedToken);
+                    
+                    LogService::debug('Auth token created in database', [
+                        'token_id' => $tokenId,
+                        'hashed_length' => strlen($hashedToken)
+                    ]);
 
                     // Delete used login code
                     $this->loginCodeDao->deleteById($row['login_code_id']);
@@ -179,14 +190,25 @@ class AuthenticationService
             $expirySeconds = (int) $this->config::get('auth.auth_token_expiry', 604800);
             $rows = $this->authTokenDao->findAllNonExpiredWithUserDetails($expirySeconds);
 
-            LogService::debug('Verifying auth token', ['non_expired_tokens_count' => count($rows)]);
+            LogService::debug('Verifying auth token', [
+                'non_expired_tokens_count' => count($rows),
+                'token_preview' => substr($token, 0, 10) . '...',
+                'token_length' => strlen($token)
+            ]);
 
             foreach ($rows as $row) {
-                if (password_verify($token, $row['token'])) {
+                $matches = password_verify($token, $row['token']);
+                LogService::debug('Checking token against database', [
+                    'token_id' => $row['auth_token_id'],
+                    'user_id' => $row['user_id'],
+                    'matches' => $matches
+                ]);
+                
+                if ($matches) {
                     // Token is valid - update last_touched to extend expiry
                     $this->authTokenDao->updateLastTouched($row['auth_token_id']);
 
-                    LogService::debug('Auth token verified successfully', [
+                    LogService::info('Auth token verified successfully', [
                         'user_id' => $row['user_id'],
                         'email' => $row['email']
                     ]);

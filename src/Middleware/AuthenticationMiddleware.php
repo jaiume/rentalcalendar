@@ -29,7 +29,9 @@ class AuthenticationMiddleware
         LogService::debug('AuthenticationMiddleware invoked', [
             'path' => $path,
             'has_token' => !empty($token),
-            'cookies_present' => array_keys($cookies)
+            'cookies_present' => array_keys($cookies),
+            'token_preview' => $token ? substr($token, 0, 10) . '...' : null,
+            'token_length' => $token ? strlen($token) : 0
         ]);
 
         if (!$token) {
