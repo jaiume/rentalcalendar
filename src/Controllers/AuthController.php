@@ -140,22 +140,35 @@ class AuthController
         $expires = time() + (int) $this->config::get('auth.token_expiry', 604800);
         $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
         
+        // Get the current hostname
+        $hostname = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '';
+        
         LogService::debug('Setting auth cookie', [
             'cookie_name' => $cookieName,
             'expires_in' => (int) $this->config::get('auth.token_expiry', 604800),
             'secure' => $secure,
             'https_header' => $_SERVER['HTTPS'] ?? 'not set',
             'server_port' => $_SERVER['SERVER_PORT'] ?? 'not set',
+            'hostname' => $hostname,
             'token_length' => strlen($token),
-            'token_preview' => substr($token, 0, 10) . '...',
-            'token_full' => $token
+            'token_preview' => substr($token, 0, 10) . '...'
         ]);
         
-        // Use PHP's setcookie() function which handles encoding properly
+        // First, clear any existing cookies on parent domain
+        setcookie($cookieName, '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'domain' => '.newburyhill.com',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+        
+        // Now set the cookie on the specific hostname
         $options = [
             'expires' => $expires,
             'path' => '/',
-            'domain' => '',
+            'domain' => $hostname,
             'secure' => $secure,
             'httponly' => true,
             'samesite' => 'Lax'
@@ -244,20 +257,25 @@ HTML;
             $this->authService->deleteToken($token);
         }
 
-        // Delete cookie using setcookie with past expiration
+        // Delete cookie on both parent domain and specific hostname
         $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
-        $options = [
+        $hostname = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '';
+        
+        $deleteOptions = [
             'expires' => time() - 3600,
             'path' => '/',
-            'domain' => '',
             'secure' => $secure,
             'httponly' => true,
             'samesite' => 'Lax'
         ];
         
-        setcookie($cookieName, '', $options);
+        // Clear parent domain cookie
+        setcookie($cookieName, '', array_merge($deleteOptions, ['domain' => '.newburyhill.com']));
         
-        LogService::info('Logout: cookie deleted', ['secure' => $secure]);
+        // Clear specific hostname cookie
+        setcookie($cookieName, '', array_merge($deleteOptions, ['domain' => $hostname]));
+        
+        LogService::info('Logout: cookies deleted', ['secure' => $secure, 'hostname' => $hostname]);
 
         $response = new SlimResponse();
         return $response
