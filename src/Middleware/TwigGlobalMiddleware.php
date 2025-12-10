@@ -36,3 +36,4 @@ class TwigGlobalMiddleware implements MiddlewareInterface
 
 
 
+

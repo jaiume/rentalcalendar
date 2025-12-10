@@ -6,3 +6,4 @@ ADD COLUMN sync_partner_last_checked DATETIME NULL AFTER sync_partner_id;
 
 
 
+

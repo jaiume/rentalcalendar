@@ -11,3 +11,4 @@ ALTER TABLE auth_tokens DROP COLUMN expiry;
 
 
 
+

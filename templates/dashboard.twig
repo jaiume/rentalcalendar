@@ -388,6 +388,29 @@
   border-right: 2px solid #dee2e6;
 }
 
+/* Sticky header for vertical scrolling */
+#multiCalendarHeader {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+#multiCalendarHeader th {
+  position: sticky;
+  top: 0;
+  background: #f8f9fa;
+  z-index: 20;
+}
+
+/* Property header cell needs to be sticky both horizontally and vertically */
+#multiCalendarHeader th.multi-calendar-property {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 30;
+  background: #f8f9fa;
+}
+
 .multi-calendar-cell {
   min-width: 40px;
   width: 40px;

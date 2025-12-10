@@ -206,21 +206,30 @@ class ReservationDAO extends BaseDAO
 
     /**
      * Delete reservations for a property and sync partner that are not in the provided list of GUIDs
+     * Only deletes reservations that are past their end date + keepDeletedDays
+     * 
+     * @param int $propertyId The property ID
+     * @param string $syncPartnerName The sync partner name (e.g., 'AirBNB')
+     * @param array $guids List of GUIDs that are currently in the sync feed
+     * @param int $keepDeletedDays Number of days after end date to keep deleted reservations
      */
-    public function deleteNotInGuidList(int $propertyId, string $syncPartnerName, array $guids): int
+    public function deleteNotInGuidList(int $propertyId, string $syncPartnerName, array $guids, int $keepDeletedDays = 0): int
     {
         if (empty($guids)) {
             // If no GUIDs provided, delete all for this property and partner
+            // that are past their end date + keepDeletedDays
             try {
                 $stmt = $this->db->prepare(
                     'DELETE FROM reservations 
                      WHERE property_id = :property_id 
                      AND source = "sync_partner" 
-                     AND sync_partner_name = :sync_partner_name'
+                     AND sync_partner_name = :sync_partner_name
+                     AND DATE_ADD(reservation_end_date, INTERVAL :keep_days DAY) < CURDATE()'
                 );
                 $stmt->execute([
                     'property_id' => $propertyId,
-                    'sync_partner_name' => $syncPartnerName
+                    'sync_partner_name' => $syncPartnerName,
+                    'keep_days' => $keepDeletedDays
                 ]);
                 return $stmt->rowCount();
             } catch (PDOException $e) {
@@ -233,7 +242,8 @@ class ReservationDAO extends BaseDAO
             $placeholders = [];
             $params = [
                 'property_id' => $propertyId,
-                'sync_partner_name' => $syncPartnerName
+                'sync_partner_name' => $syncPartnerName,
+                'keep_days' => $keepDeletedDays
             ];
             
             foreach ($guids as $index => $guid) {
@@ -249,7 +259,8 @@ class ReservationDAO extends BaseDAO
                  WHERE property_id = :property_id 
                  AND source = 'sync_partner' 
                  AND sync_partner_name = :sync_partner_name
-                 AND reservation_guid NOT IN ($placeholdersStr)"
+                 AND reservation_guid NOT IN ($placeholdersStr)
+                 AND DATE_ADD(reservation_end_date, INTERVAL :keep_days DAY) < CURDATE()"
             );
             $stmt->execute($params);
             return $stmt->rowCount();

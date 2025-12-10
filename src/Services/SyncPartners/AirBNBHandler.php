@@ -64,7 +64,9 @@ class AirBNBHandler implements SyncPartnerInterface
             }
             
             // Delete reservations that are no longer in the feed
-            $deletedCount = $this->reservationDao->deleteNotInGuidList($propertyId, 'AirBNB', $currentGuids);
+            // Keep deleted reservations for configured number of days after their end date
+            $keepDeletedDays = (int) $this->config::get('AirBNB.keep_deleted_reservations_for', 30);
+            $deletedCount = $this->reservationDao->deleteNotInGuidList($propertyId, 'AirBNB', $currentGuids, $keepDeletedDays);
             $stats['deleted'] = $deletedCount;
             
             // Update last fetch status
