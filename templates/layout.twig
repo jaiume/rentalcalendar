@@ -17,6 +17,26 @@
       .hero {
         min-height: 80vh;
       }
+      /* Full height layout - only when multi-calendar-active class is on body */
+      body.multi-calendar-active {
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      body.multi-calendar-active > nav {
+        flex-shrink: 0;
+      }
+      body.multi-calendar-active > main {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      body.multi-calendar-active > footer {
+        display: none;
+      }
     </style>
   </head>
   <body class="d-flex flex-column min-vh-100">
@@ -46,7 +66,7 @@
       {% block content %}{% endblock %}
     </main>
 
-    <footer class="py-4 bg-white border-top mt-5">
+    <footer class="py-4 bg-white border-top mt-auto" id="pageFooter">
       <div class="container text-center text-muted small">
         &copy; {{ "now"|date("Y") }} Rental Calendar. Built with Slim, Twig, and Bootstrap.
       </div>

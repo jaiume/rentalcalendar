@@ -3,10 +3,10 @@
 {% block title %}Dashboard | Rental Calendar{% endblock %}
 
 {% block content %}
-<section class="py-4">
-  <div class="container-fluid">
+<section class="dashboard-section py-2">
+  <div class="container-fluid dashboard-container">
     <!-- Dashboard Header -->
-    <div class="row mb-3">
+    <div class="row mb-2 dashboard-header">
         <div class="col-12">
           <div class="card border-0 shadow-sm">
             <div class="card-body py-2">
@@ -60,7 +60,7 @@
 
     <!-- Multi Property Calendar View -->
     <div id="viewMultiCalendar" class="dashboard-view">
-      <div class="card border-0 shadow-sm">
+      <div class="card border-0 shadow-sm multi-calendar-card">
         <div class="card-header bg-white">
           <div class="d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Multi Property Calendar</h5>
@@ -74,8 +74,8 @@
           </div>
         </div>
         </div>
-        <div class="card-body p-0">
-          <div id="multiCalendarContainer" style="overflow: auto; max-height: 75vh;">
+        <div class="card-body p-0 multi-calendar-card-body">
+          <div id="multiCalendarContainer">
             <table class="table table-bordered mb-0" id="multiCalendarTable" style="position: relative;">
               <thead id="multiCalendarHeader"></thead>
               <tbody id="multiCalendarBody" style="position: relative;"></tbody>
@@ -125,7 +125,8 @@
         </div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
 <!-- Event Creation Modal -->
 <div class="modal fade" id="eventModal" tabindex="-1">
@@ -261,6 +262,54 @@
 <style>
 .dashboard-view {
   min-height: 500px;
+}
+
+/* Multi-calendar full-height layout - only when body has multi-calendar-active class */
+body.multi-calendar-active .dashboard-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding-top: 0.5rem;
+  padding-bottom: 0;
+}
+
+body.multi-calendar-active .dashboard-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+body.multi-calendar-active .dashboard-header {
+  flex-shrink: 0;
+}
+
+body.multi-calendar-active #viewMultiCalendar {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+body.multi-calendar-active .multi-calendar-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+body.multi-calendar-active .multi-calendar-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+body.multi-calendar-active #multiCalendarContainer {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .calendar-grid {
@@ -736,6 +785,13 @@ class Dashboard {
     document.querySelectorAll('.dashboard-view').forEach(view => {
       view.style.display = 'none';
     });
+
+    // Toggle full-height layout for multi-calendar view only
+    if (this.currentView === 'multi') {
+      document.body.classList.add('multi-calendar-active');
+    } else {
+      document.body.classList.remove('multi-calendar-active');
+    }
 
     // Show property selector for single property views
     const propertySelector = document.getElementById('propertySelector');
@@ -2432,6 +2488,9 @@ class Dashboard {
 
 // Initialize dashboard when page loads
 document.addEventListener('DOMContentLoaded', () => {
+  // Set multi-calendar-active class immediately since it's the default view
+  document.body.classList.add('multi-calendar-active');
+  
   window.dashboard = new Dashboard();
   
   // Setup sync button
