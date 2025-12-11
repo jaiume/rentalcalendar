@@ -154,17 +154,22 @@ class AuthController
             'token_preview' => substr($token, 0, 10) . '...'
         ]);
         
-        // First, clear any existing cookies on parent domain
-        setcookie($cookieName, '', [
+        $deleteOptions = [
             'expires' => time() - 3600,
             'path' => '/',
-            'domain' => '.newburyhill.com',
             'secure' => $secure,
             'httponly' => true,
             'samesite' => 'Lax'
-        ]);
+        ];
         
-        // Now set the cookie on the specific hostname
+        // Clear existing auth cookies for current domain to prevent login loops from duplicate cookies
+        // 1. Clear cookie with no domain (browser default - exact host match)
+        setcookie($cookieName, '', $deleteOptions);
+        
+        // 2. Clear cookie on specific hostname
+        setcookie($cookieName, '', array_merge($deleteOptions, ['domain' => $hostname]));
+        
+        // Now set the new cookie on the specific hostname
         $options = [
             'expires' => $expires,
             'path' => '/',
@@ -176,7 +181,7 @@ class AuthController
         
         setcookie($cookieName, $token, $options);
         
-        LogService::debug('Cookie set via setcookie() function', $options);
+        LogService::debug('Cookie set via setcookie() function (cleared existing cookies first)', $options);
 
         $response = new SlimResponse();
         return $response
@@ -269,10 +274,10 @@ HTML;
             'samesite' => 'Lax'
         ];
         
-        // Clear parent domain cookie
-        setcookie($cookieName, '', array_merge($deleteOptions, ['domain' => '.newburyhill.com']));
+        // Clear cookie with no domain (browser default)
+        setcookie($cookieName, '', $deleteOptions);
         
-        // Clear specific hostname cookie
+        // Clear cookie on specific hostname
         setcookie($cookieName, '', array_merge($deleteOptions, ['domain' => $hostname]));
         
         LogService::info('Logout: cookies deleted', ['secure' => $secure, 'hostname' => $hostname]);
