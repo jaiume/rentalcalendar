@@ -24,7 +24,7 @@ class PropertyDAO extends BaseDAO
     {
         try {
             $stmt = $this->db->query(
-                'SELECT property_id, property_name, timezone FROM properties ORDER BY property_name'
+                'SELECT property_id, property_name, timezone, cleaner_tails FROM properties ORDER BY property_name'
             );
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
@@ -48,15 +48,16 @@ class PropertyDAO extends BaseDAO
     /**
      * Create a new property
      */
-    public function create(string $propertyName, string $timezone = 'UTC'): int
+    public function create(string $propertyName, string $timezone = 'UTC', bool $cleanerTails = false): int
     {
         try {
             $stmt = $this->db->prepare(
-                'INSERT INTO properties (property_name, timezone) VALUES (:name, :timezone)'
+                'INSERT INTO properties (property_name, timezone, cleaner_tails) VALUES (:name, :timezone, :cleaner_tails)'
             );
             $stmt->execute([
                 'name' => $propertyName,
                 'timezone' => $timezone,
+                'cleaner_tails' => $cleanerTails ? 1 : 0,
             ]);
             return (int) $this->db->lastInsertId();
         } catch (PDOException $e) {
@@ -67,18 +68,19 @@ class PropertyDAO extends BaseDAO
     /**
      * Update a property
      */
-    public function update(int $propertyId, string $propertyName, string $timezone = 'UTC'): bool
+    public function update(int $propertyId, string $propertyName, string $timezone = 'UTC', bool $cleanerTails = false): bool
     {
         try {
             $stmt = $this->db->prepare(
                 'UPDATE properties 
-                 SET property_name = :name, timezone = :timezone
+                 SET property_name = :name, timezone = :timezone, cleaner_tails = :cleaner_tails
                  WHERE property_id = :id'
             );
             $stmt->execute([
                 'id' => $propertyId,
                 'name' => $propertyName,
                 'timezone' => $timezone,
+                'cleaner_tails' => $cleanerTails ? 1 : 0,
             ]);
             return $stmt->rowCount() > 0;
         } catch (PDOException $e) {

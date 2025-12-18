@@ -37,7 +37,8 @@ class ReservationDAO extends BaseDAO
     }
 
     /**
-     * Get reservations within date range
+     * Get reservations within date range.
+     * Includes is_orphaned flag for sync partner reservations that are no longer in the feed.
      */
     public function findByDateRange(string $startDate, string $endDate, ?int $propertyId = null): array
     {
@@ -54,6 +55,7 @@ class ReservationDAO extends BaseDAO
                 reservation_status,
                 source,
                 sync_partner_name,
+                is_orphaned,
                 NULL as partner_color
                 FROM reservations
                 WHERE reservation_start_date <= :end_date 
@@ -126,7 +128,8 @@ class ReservationDAO extends BaseDAO
     }
 
     /**
-     * Update reservation dates and details
+     * Update reservation dates and details.
+     * Also clears the is_orphaned flag since this reservation is still in the feed.
      */
     public function updateDatesAndDetails(
         int $reservationId,
@@ -142,7 +145,7 @@ class ReservationDAO extends BaseDAO
                      reservation_end_date = :end,
                      reservation_name = :summary,
                      reservation_description = :description,
-                     sync_partner_last_checked = NOW(),
+                     is_orphaned = 0,
                      updated_at = NOW()
                  WHERE reservation_id = :id'
             );
@@ -160,18 +163,18 @@ class ReservationDAO extends BaseDAO
     }
 
     /**
-     * Update last checked time for sync partner reservations
+     * Clear the orphaned flag for a reservation (called when reservation is found in sync feed)
      */
-    public function updateLastChecked(int $reservationId): bool
+    public function clearOrphanedFlag(int $reservationId): bool
     {
         try {
             $stmt = $this->db->prepare(
-                'UPDATE reservations SET sync_partner_last_checked = NOW() WHERE reservation_id = :id'
+                'UPDATE reservations SET is_orphaned = 0 WHERE reservation_id = :id'
             );
             $stmt->execute(['id' => $reservationId]);
             return $stmt->rowCount() > 0;
         } catch (PDOException $e) {
-            throw new \RuntimeException("Failed to update reservation last checked: " . $e->getMessage(), 0, $e);
+            throw new \RuntimeException("Failed to clear orphaned flag: " . $e->getMessage(), 0, $e);
         }
     }
 
@@ -205,67 +208,96 @@ class ReservationDAO extends BaseDAO
     }
 
     /**
-     * Delete reservations for a property and sync partner that are not in the provided list of GUIDs
-     * Only deletes reservations that are past their end date + keepDeletedDays
+     * Handle reservations for a property and sync partner that are not in the provided list of GUIDs.
+     * 
+     * Logic:
+     * - Future reservations (end_date >= today) not in feed: Delete immediately (cancellation)
+     * - Past reservations (end_date < today) not in feed within retention: Mark as orphaned
+     * - Past reservations (end_date < today) not in feed beyond retention: Delete
      * 
      * @param int $propertyId The property ID
      * @param string $syncPartnerName The sync partner name (e.g., 'AirBNB')
      * @param array $guids List of GUIDs that are currently in the sync feed
-     * @param int $keepDeletedDays Number of days after end date to keep deleted reservations
+     * @param int $keepDeletedDays Number of days after end date to keep deleted past reservations
+     * @return int Total number of deleted reservations
      */
     public function deleteNotInGuidList(int $propertyId, string $syncPartnerName, array $guids, int $keepDeletedDays = 0): int
     {
-        if (empty($guids)) {
-            // If no GUIDs provided, delete all for this property and partner
-            // that are past their end date + keepDeletedDays
-            try {
-                $stmt = $this->db->prepare(
-                    'DELETE FROM reservations 
-                     WHERE property_id = :property_id 
-                     AND source = "sync_partner" 
-                     AND sync_partner_name = :sync_partner_name
-                     AND DATE_ADD(reservation_end_date, INTERVAL :keep_days DAY) < CURDATE()'
-                );
-                $stmt->execute([
-                    'property_id' => $propertyId,
-                    'sync_partner_name' => $syncPartnerName,
-                    'keep_days' => $keepDeletedDays
-                ]);
-                return $stmt->rowCount();
-            } catch (PDOException $e) {
-                throw new \RuntimeException("Failed to delete old reservations: " . $e->getMessage(), 0, $e);
-            }
-        }
+        $totalDeleted = 0;
 
         try {
-            // Create placeholders for IN clause
-            $placeholders = [];
-            $params = [
+            // Build the NOT IN clause for GUIDs (if any)
+            $guidCondition = '';
+            $guidParams = [];
+            
+            if (!empty($guids)) {
+                $placeholders = [];
+                foreach ($guids as $index => $guid) {
+                    $key = ':guid' . $index;
+                    $placeholders[] = $key;
+                    $guidParams[$key] = $guid;
+                }
+                $guidCondition = 'AND reservation_guid NOT IN (' . implode(',', $placeholders) . ')';
+            }
+
+            // 1. Delete FUTURE reservations not in feed (immediate deletion - these are cancellations)
+            $futureParams = array_merge([
                 'property_id' => $propertyId,
                 'sync_partner_name' => $syncPartnerName,
-                'keep_days' => $keepDeletedDays
-            ];
-            
-            foreach ($guids as $index => $guid) {
-                $key = ':guid' . $index;
-                $placeholders[] = $key;
-                $params[$key] = $guid;
-            }
-            
-            $placeholdersStr = implode(',', $placeholders);
-            
+            ], $guidParams);
+
             $stmt = $this->db->prepare(
                 "DELETE FROM reservations 
                  WHERE property_id = :property_id 
                  AND source = 'sync_partner' 
                  AND sync_partner_name = :sync_partner_name
-                 AND reservation_guid NOT IN ($placeholdersStr)
-                 AND DATE_ADD(reservation_end_date, INTERVAL :keep_days DAY) < CURDATE()"
+                 AND reservation_end_date >= CURDATE()
+                 $guidCondition"
             );
-            $stmt->execute($params);
-            return $stmt->rowCount();
+            $stmt->execute($futureParams);
+            $totalDeleted += $stmt->rowCount();
+
+            // 2. Mark PAST reservations not in feed (within retention period) as orphaned
+            $orphanParams = array_merge([
+                'property_id' => $propertyId,
+                'sync_partner_name' => $syncPartnerName,
+                'keep_days' => $keepDeletedDays
+            ], $guidParams);
+
+            $stmt = $this->db->prepare(
+                "UPDATE reservations 
+                 SET is_orphaned = 1
+                 WHERE property_id = :property_id 
+                 AND source = 'sync_partner' 
+                 AND sync_partner_name = :sync_partner_name
+                 AND reservation_end_date < CURDATE()
+                 AND DATE_ADD(reservation_end_date, INTERVAL :keep_days DAY) >= CURDATE()
+                 $guidCondition"
+            );
+            $stmt->execute($orphanParams);
+
+            // 3. Delete PAST reservations not in feed that are beyond the retention period
+            $pastParams = array_merge([
+                'property_id' => $propertyId,
+                'sync_partner_name' => $syncPartnerName,
+                'keep_days' => $keepDeletedDays
+            ], $guidParams);
+
+            $stmt = $this->db->prepare(
+                "DELETE FROM reservations 
+                 WHERE property_id = :property_id 
+                 AND source = 'sync_partner' 
+                 AND sync_partner_name = :sync_partner_name
+                 AND reservation_end_date < CURDATE()
+                 AND DATE_ADD(reservation_end_date, INTERVAL :keep_days DAY) < CURDATE()
+                 $guidCondition"
+            );
+            $stmt->execute($pastParams);
+            $totalDeleted += $stmt->rowCount();
+
+            return $totalDeleted;
         } catch (PDOException $e) {
-            throw new \RuntimeException("Failed to delete old reservations: " . $e->getMessage(), 0, $e);
+            throw new \RuntimeException("Failed to handle stale reservations: " . $e->getMessage(), 0, $e);
         }
     }
 }

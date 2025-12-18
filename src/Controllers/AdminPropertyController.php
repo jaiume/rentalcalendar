@@ -44,13 +44,14 @@ class AdminPropertyController
         $data = (array) $request->getParsedBody();
         $name = trim($data['property_name'] ?? '');
         $timezone = trim($data['timezone'] ?? 'UTC');
+        $cleanerTails = isset($data['cleaner_tails']) && $data['cleaner_tails'] === '1';
 
         if (!$name) {
             return $this->redirectWithError('/admin/properties/create', 'Property name is required');
         }
 
         try {
-            $this->propertyDao->create($name, $timezone);
+            $this->propertyDao->create($name, $timezone, $cleanerTails);
 
             $response = new SlimResponse();
             return $response
@@ -88,13 +89,14 @@ class AdminPropertyController
         $data = (array) $request->getParsedBody();
         $name = trim($data['property_name'] ?? '');
         $timezone = trim($data['timezone'] ?? 'UTC');
+        $cleanerTails = isset($data['cleaner_tails']) && $data['cleaner_tails'] === '1';
 
         if (!$name) {
             return $this->redirectWithError("/admin/properties/{$propertyId}/edit", 'Property name is required');
         }
 
         try {
-            $this->propertyDao->update($propertyId, $name, $timezone);
+            $this->propertyDao->update($propertyId, $name, $timezone, $cleanerTails);
 
             $response = new SlimResponse();
             return $response

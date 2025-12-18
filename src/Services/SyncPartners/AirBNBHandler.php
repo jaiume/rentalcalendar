@@ -152,8 +152,8 @@ class AirBNBHandler implements SyncPartnerInterface
                 return 'updated';
             }
             
-            // Just update check time
-            $this->reservationDao->updateLastChecked($existing['reservation_id']);
+            // Clear orphaned flag if reservation is still in the feed
+            $this->reservationDao->clearOrphanedFlag($existing['reservation_id']);
                 
             return 'skipped';
         }

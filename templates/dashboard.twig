@@ -62,15 +62,19 @@
     <div id="viewMultiCalendar" class="dashboard-view">
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white">
-          <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Multi Property Calendar</h5>
-            <div class="d-flex gap-2 align-items-center">
-              <button class="btn btn-sm btn-outline-secondary" id="prevMonthMulti">← Month</button>
-              <button class="btn btn-sm btn-outline-secondary" id="prevHalfMonthMulti">← Half</button>
-              <span id="currentMonthMulti" class="fw-bold"></span>
-              <button class="btn btn-sm btn-outline-secondary" id="nextHalfMonthMulti">Half →</button>
-              <button class="btn btn-sm btn-outline-secondary" id="nextMonthMulti">Month →</button>
-              <button class="btn btn-sm btn-outline-primary" id="todayBtnMulti">Today</button>
+          <div class="d-flex justify-content-between align-items-center gap-2">
+            <h5 class="mb-0 text-nowrap">Multi Property Calendar</h5>
+            <div class="d-flex gap-1 align-items-center flex-nowrap">
+              <!-- Cleaner Filter -->
+              <select id="cleanerFilter" class="form-select form-select-sm" style="width: 140px;">
+                <option value="">All Cleaners</option>
+              </select>
+              <button class="btn btn-sm btn-outline-secondary text-nowrap" id="prevMonthMulti">← Mo</button>
+              <button class="btn btn-sm btn-outline-secondary text-nowrap" id="prevHalfMonthMulti">← ½</button>
+              <span id="currentMonthMulti" class="fw-bold text-nowrap" style="min-width: 120px; text-align: center;"></span>
+              <button class="btn btn-sm btn-outline-secondary text-nowrap" id="nextHalfMonthMulti">½ →</button>
+              <button class="btn btn-sm btn-outline-secondary text-nowrap" id="nextMonthMulti">Mo →</button>
+              <button class="btn btn-sm btn-outline-primary text-nowrap" id="todayBtnMulti">Today</button>
           </div>
         </div>
         </div>
@@ -373,6 +377,11 @@
   color: white;
 }
 
+.event-cleaning-tail {
+  pointer-events: none;
+  color: transparent !important;
+}
+
 .multi-calendar-row {
   position: relative;
   overflow: visible;
@@ -535,11 +544,54 @@ const SYNC_PARTNER_BAR_COLORS = {{ sync_partner_bar_colors|json_encode|raw }};
 const USER_IS_ADMIN = {{ user.is_admin ? 'true' : 'false' }};
 const USER_PERMISSIONS = {{ user_permissions|json_encode|raw }};
 
+// Helper function to convert hex color to rgba with opacity
+function hexToRgba(hex, opacity) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+// Helper function to lighten a hex color by a percentage (0-1)
+// Used for orphaned reservations that are no longer in the sync feed
+function lightenColor(hex, percent) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  // Lighten by mixing with white
+  const newR = Math.round(r + (255 - r) * percent);
+  const newG = Math.round(g + (255 - g) * percent);
+  const newB = Math.round(b + (255 - b) * percent);
+  return `rgb(${newR}, ${newG}, ${newB})`;
+}
+
+// Helper to get reservation bar color, applying lightening for orphaned reservations
+function getReservationBarColor(reservation) {
+  let baseColor = RESERVATION_COLOR;
+  
+  if (reservation.sync_partner_name && SYNC_PARTNER_BAR_COLORS[reservation.sync_partner_name]) {
+    baseColor = SYNC_PARTNER_BAR_COLORS[reservation.sync_partner_name];
+  } else if (reservation.partner_color) {
+    baseColor = reservation.partner_color;
+  }
+  
+  // Apply 40% lightening for orphaned reservations
+  if (reservation.is_orphaned == 1 || reservation.is_orphaned === '1') {
+    return lightenColor(baseColor, 0.4);
+  }
+  
+  return baseColor;
+}
+
+// Calculate cleaner tail color dynamically from CLEANING_COLOR
+const CLEANING_TAIL_COLOR = hexToRgba(CLEANING_COLOR, 0.4);
+
 class Dashboard {
   constructor() {
     this.currentView = 'multi';
     this.currentDate = new Date();
     this.selectedPropertyId = null;
+    this.selectedCleanerFilter = null; // For multi-calendar cleaner filter
     this.properties = [];
     this.events = { reservations: [], cleaning: [], maintenance: [] };
     this.cleaners = [];
@@ -632,6 +684,7 @@ class Dashboard {
       const data = await response.json();
       this.cleaners = data.cleaners;
       this.populateCleanerSelector();
+      this.populateCleanerFilter();
     } catch (error) {
       console.error('Failed to load cleaners:', error);
     }
@@ -682,6 +735,19 @@ class Dashboard {
     });
   }
 
+  populateCleanerFilter() {
+    const filter = document.getElementById('cleanerFilter');
+    if (!filter) return;
+    
+    filter.innerHTML = '<option value="">All Cleaners</option>';
+    this.cleaners.forEach(cleaner => {
+      const option = document.createElement('option');
+      option.value = cleaner.cleaner_id;
+      option.textContent = `${cleaner.cleaner_name} (${cleaner.cleaner_initials})`;
+      filter.appendChild(option);
+    });
+  }
+
   setupEventListeners() {
     // View switcher
     document.querySelectorAll('input[name="viewType"]').forEach(radio => {
@@ -694,6 +760,12 @@ class Dashboard {
     // Property selector
     document.getElementById('propertySelector').addEventListener('change', (e) => {
       this.selectedPropertyId = e.target.value || null;
+      this.loadView();
+    });
+
+    // Cleaner filter (for multi-calendar view)
+    document.getElementById('cleanerFilter')?.addEventListener('change', (e) => {
+      this.selectedCleanerFilter = e.target.value || null;
       this.loadView();
     });
 
@@ -887,12 +959,28 @@ class Dashboard {
     const body = document.getElementById('multiCalendarBody');
     body.innerHTML = '';
     
-    const propsToShow = this.selectedPropertyId 
+    // Filter properties based on selected property and/or cleaner filter
+    let propsToShow = this.selectedPropertyId 
       ? this.properties.filter(p => p.property_id == this.selectedPropertyId)
       : this.properties;
 
+    // Apply cleaner filter if selected - only show properties with cleaning events for this cleaner in view
+    if (this.selectedCleanerFilter) {
+      const cleanerId = parseInt(this.selectedCleanerFilter);
+      // Get property IDs that have cleaning events for this cleaner in the visible date range
+      const propertyIdsWithCleaner = new Set(
+        this.events.cleaning
+          .filter(c => c.cleaner_id == cleanerId)
+          .map(c => c.property_id)
+      );
+      propsToShow = propsToShow.filter(p => propertyIdsWithCleaner.has(p.property_id));
+    }
+
     if (propsToShow.length === 0) {
-      body.innerHTML = '<tr><td colspan="' + (daysToShow + 1) + '" class="text-center text-muted py-4">No properties available. Please ensure you have access to at least one property.</td></tr>';
+      const message = this.selectedCleanerFilter 
+        ? 'No properties found with cleaning events for this cleaner in the current date range.'
+        : 'No properties available. Please ensure you have access to at least one property.';
+      body.innerHTML = '<tr><td colspan="' + (daysToShow + 1) + '" class="text-center text-muted py-4">' + message + '</td></tr>';
       return;
     }
 
@@ -1192,9 +1280,9 @@ class Dashboard {
           description += ` - ${event.data.reservation_description}`;
         }
         
-        // For sync partner reservations, show only the partner badge
+        // For sync partner reservations, show only the partner badge (with lightening for orphaned)
         if (event.data.sync_partner_name && SYNC_PARTNER_BAR_COLORS[event.data.sync_partner_name]) {
-          const partnerColor = SYNC_PARTNER_BAR_COLORS[event.data.sync_partner_name];
+          const partnerColor = getReservationBarColor(event.data);
           badgeHtml = `<span class="badge" style="background-color: ${partnerColor}; color: white;">${event.data.sync_partner_name}</span>`;
         } else {
           // For internal reservations, show the reservation badge
@@ -1317,14 +1405,8 @@ class Dashboard {
           event.style.width = `${cellWidth * spanCells}px`;
           event.style.borderRadius = '2px';
           
-          // Use sync partner bar color from config if available, otherwise use reservation color
-          if (r.sync_partner_name && SYNC_PARTNER_BAR_COLORS[r.sync_partner_name]) {
-            event.style.background = SYNC_PARTNER_BAR_COLORS[r.sync_partner_name];
-          } else if (r.partner_color) {
-            event.style.background = r.partner_color;
-          } else {
-            event.style.background = RESERVATION_COLOR;
-          }
+          // Use sync partner bar color, with lightening for orphaned reservations
+          event.style.background = getReservationBarColor(r);
           
           event.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1353,14 +1435,8 @@ class Dashboard {
           event.dataset.startDate = r.reservation_start_date;
           event.dataset.endDate = r.reservation_end_date;
           event.style.cursor = 'pointer';
-          // Use sync partner bar color from config if available, otherwise use reservation color
-          if (r.sync_partner_name && SYNC_PARTNER_BAR_COLORS[r.sync_partner_name]) {
-            event.style.background = SYNC_PARTNER_BAR_COLORS[r.sync_partner_name];
-          } else if (r.partner_color) {
-            event.style.background = r.partner_color;
-          } else {
-            event.style.background = RESERVATION_COLOR;
-          }
+          // Use sync partner bar color, with lightening for orphaned reservations
+          event.style.background = getReservationBarColor(r);
           event.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -1391,6 +1467,45 @@ class Dashboard {
         });
         cleaningRow.appendChild(event);
       });
+
+    // Cleaner Tails - render for days after cleaning until next event
+    if (this.hasCleanerTails(propertyId)) {
+      // Check if this date should show a cleaner tail
+      // Find any cleaning event that ends before this date
+      const cleaningBeforeThis = this.events.cleaning
+        .filter(c => c.property_id == propertyId && c.cleaning_date < dateStr)
+        .sort((a, b) => b.cleaning_date.localeCompare(a.cleaning_date))[0]; // Most recent
+      
+      if (cleaningBeforeThis) {
+        // Find the next event after the cleaning
+        const nextEventDate = this.findNextEventDate(propertyId, cleaningBeforeThis.cleaning_date);
+        
+        // Check if this date is in the tail range (after cleaning, before next event)
+        const dayAfterCleaning = new Date(cleaningBeforeThis.cleaning_date);
+        dayAfterCleaning.setDate(dayAfterCleaning.getDate() + 1);
+        const dayAfterCleaningStr = dayAfterCleaning.toISOString().split('T')[0];
+        
+        // This date should show tail if: it's >= day after cleaning AND (no next event OR < next event date)
+        if (dateStr >= dayAfterCleaningStr && (!nextEventDate || dateStr < nextEventDate)) {
+          // Don't render tail if there's already a cleaning event on this day
+          const hasCleaningToday = this.events.cleaning.some(c => c.property_id == propertyId && c.cleaning_date === dateStr);
+          // Don't render tail if there's a reservation on this day
+          const hasReservationToday = this.events.reservations.some(r => 
+            r.property_id == propertyId && dateStr >= r.reservation_start_date && dateStr <= r.reservation_end_date);
+          // Don't render tail if there's maintenance on this day
+          const hasMaintenanceToday = this.events.maintenance.some(m =>
+            m.property_id == propertyId && dateStr >= m.maintenance_start_date && dateStr <= m.maintenance_end_date);
+          
+          if (!hasCleaningToday && !hasReservationToday && !hasMaintenanceToday) {
+            const tail = document.createElement('div');
+            tail.className = 'multi-calendar-event event-cleaning event-cleaning-tail';
+            tail.style.setProperty('background', CLEANING_TAIL_COLOR, 'important');
+            tail.textContent = '\u00A0'; // Non-breaking space to match height
+            cleaningRow.appendChild(tail);
+          }
+        }
+      }
+    }
 
     // Maintenance - bottom row (multi-day events span across cells)
     this.events.maintenance
@@ -1601,14 +1716,8 @@ class Dashboard {
             event.style.width = `${dayWidth * rowDays.length}px`;
             event.style.borderRadius = '2px';
             
-            // Use sync partner bar color from config if available, otherwise use reservation color
-            if (r.sync_partner_name && SYNC_PARTNER_BAR_COLORS[r.sync_partner_name]) {
-              event.style.background = SYNC_PARTNER_BAR_COLORS[r.sync_partner_name];
-            } else if (r.partner_color) {
-              event.style.background = r.partner_color;
-            } else {
-              event.style.background = RESERVATION_COLOR;
-            }
+            // Use sync partner bar color, with lightening for orphaned reservations
+            event.style.background = getReservationBarColor(r);
             
             event.addEventListener('click', (e) => {
               e.stopPropagation();
@@ -1634,14 +1743,8 @@ class Dashboard {
           event.dataset.startDate = r.reservation_start_date;
           event.dataset.endDate = r.reservation_end_date;
           event.style.cursor = 'pointer';
-          // Use sync partner bar color from config if available, otherwise use reservation color
-          if (r.sync_partner_name && SYNC_PARTNER_BAR_COLORS[r.sync_partner_name]) {
-            event.style.background = SYNC_PARTNER_BAR_COLORS[r.sync_partner_name];
-          } else if (r.partner_color) {
-            event.style.background = r.partner_color;
-          } else {
-            event.style.background = RESERVATION_COLOR;
-          }
+          // Use sync partner bar color, with lightening for orphaned reservations
+          event.style.background = getReservationBarColor(r);
           event.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -1673,6 +1776,45 @@ class Dashboard {
         });
         cleaningRow.appendChild(event);
       });
+
+    // Cleaner Tails - render for days after cleaning until next event (single property view)
+    if (this.hasCleanerTails(propertyId)) {
+      // Check if this date should show a cleaner tail
+      // Find any cleaning event that ends before this date
+      const cleaningBeforeThis = this.events.cleaning
+        .filter(c => c.property_id == propertyId && c.cleaning_date < dateStr)
+        .sort((a, b) => b.cleaning_date.localeCompare(a.cleaning_date))[0]; // Most recent
+      
+      if (cleaningBeforeThis) {
+        // Find the next event after the cleaning
+        const nextEventDate = this.findNextEventDate(propertyId, cleaningBeforeThis.cleaning_date);
+        
+        // Check if this date is in the tail range (after cleaning, before next event)
+        const dayAfterCleaning = new Date(cleaningBeforeThis.cleaning_date);
+        dayAfterCleaning.setDate(dayAfterCleaning.getDate() + 1);
+        const dayAfterCleaningStr = dayAfterCleaning.toISOString().split('T')[0];
+        
+        // This date should show tail if: it's >= day after cleaning AND (no next event OR < next event date)
+        if (dateStr >= dayAfterCleaningStr && (!nextEventDate || dateStr < nextEventDate)) {
+          // Don't render tail if there's already a cleaning event on this day
+          const hasCleaningToday = this.events.cleaning.some(c => c.property_id == propertyId && c.cleaning_date === dateStr);
+          // Don't render tail if there's a reservation on this day
+          const hasReservationToday = this.events.reservations.some(r => 
+            r.property_id == propertyId && dateStr >= r.reservation_start_date && dateStr <= r.reservation_end_date);
+          // Don't render tail if there's maintenance on this day
+          const hasMaintenanceToday = this.events.maintenance.some(m =>
+            m.property_id == propertyId && dateStr >= m.maintenance_start_date && dateStr <= m.maintenance_end_date);
+          
+          if (!hasCleaningToday && !hasReservationToday && !hasMaintenanceToday) {
+            const tail = document.createElement('div');
+            tail.className = 'event-bar event-cleaning event-cleaning-tail';
+            tail.style.setProperty('background', CLEANING_TAIL_COLOR, 'important');
+            tail.textContent = '\u00A0'; // Non-breaking space to match height
+            cleaningRow.appendChild(tail);
+          }
+        }
+      }
+    }
 
     // Maintenance - bottom row (multi-day events span across days)
     this.events.maintenance
@@ -2033,6 +2175,51 @@ class Dashboard {
         element.title = 'You do not have permission to edit this maintenance';
       }
     }
+  }
+
+  /**
+   * Find the next event date for a property after a given date
+   * Returns the date string of the next event or null if none found
+   */
+  findNextEventDate(propertyId, afterDate) {
+    let nextDate = null;
+    
+    // Check reservations
+    this.events.reservations
+      .filter(r => r.property_id == propertyId && r.reservation_start_date > afterDate)
+      .forEach(r => {
+        if (!nextDate || r.reservation_start_date < nextDate) {
+          nextDate = r.reservation_start_date;
+        }
+      });
+    
+    // Check cleaning events
+    this.events.cleaning
+      .filter(c => c.property_id == propertyId && c.cleaning_date > afterDate)
+      .forEach(c => {
+        if (!nextDate || c.cleaning_date < nextDate) {
+          nextDate = c.cleaning_date;
+        }
+      });
+    
+    // Check maintenance events
+    this.events.maintenance
+      .filter(m => m.property_id == propertyId && m.maintenance_start_date > afterDate)
+      .forEach(m => {
+        if (!nextDate || m.maintenance_start_date < nextDate) {
+          nextDate = m.maintenance_start_date;
+        }
+      });
+    
+    return nextDate;
+  }
+
+  /**
+   * Check if a property has cleaner tails enabled
+   */
+  hasCleanerTails(propertyId) {
+    const property = this.properties.find(p => p.property_id == propertyId);
+    return property && (property.cleaner_tails === true || property.cleaner_tails === 1 || property.cleaner_tails === '1');
   }
 
   openEventTypeSelector(propertyId, startDate, endDate) {
