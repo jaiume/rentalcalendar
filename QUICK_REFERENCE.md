@@ -2,7 +2,7 @@
 
 ## What Changed
 
-Maintenance events now use **date-time format** instead of **all-day format**.
+Maintenance events now use **date-time format with standard check-in/check-out times** instead of **all-day format**.
 
 ---
 
@@ -12,8 +12,10 @@ Maintenance events now use **date-time format** instead of **all-day format**.
 
 | OLD (AirBNB ignores) | NEW (AirBNB blocks) |
 |---------------------|---------------------|
-| `DTSTART;VALUE=DATE:20260501` | `DTSTART:20260501T000000Z` |
-| `DTEND;VALUE=DATE:20260531` | `DTEND:20260601T000000Z` |
+| `DTSTART;VALUE=DATE:20260501` | `DTSTART:20260501T190000Z` |
+| `DTEND;VALUE=DATE:20260531` | `DTEND:20260531T160000Z` |
+
+**Note:** `T190000Z` = 15:00 local time (check-in), `T160000Z` = 12:00 local time (check-out)
 
 ---
 
@@ -35,11 +37,29 @@ END:VEVENT
 BEGIN:VEVENT
 UID:maintenance-8
 SUMMARY:Pool Upgrade
-DTSTART:20260501T000000Z
-DTEND:20260601T000000Z
+DTSTART:20260501T190000Z
+DTEND:20260531T160000Z
 STATUS:CONFIRMED
 END:VEVENT
 ```
+
+---
+
+## Matches Your Reservations
+
+**Your Reservation (Emma and Doug):**
+```ics
+DTSTART:20251227T190000Z
+DTEND:20260113T160000Z
+```
+
+**Your Maintenance (Pool Upgrade):**
+```ics
+DTSTART:20260501T190000Z
+DTEND:20260531T160000Z
+```
+
+**Result:** Identical format! AirBNB treats both the same way.
 
 ---
 
@@ -48,19 +68,20 @@ END:VEVENT
 | Issue | Solution |
 |-------|----------|
 | AirBNB ignores `VALUE=DATE` | Removed `VALUE=DATE` parameter |
-| Needs time component | Added `T000000Z` (midnight UTC) |
-| Must look like booking | Uses same format as reservations |
-| End date confusion | DTEND is next day (exclusive) |
+| Needs time component | Added standard check-in/check-out times |
+| Must look like booking | Uses **identical** format to reservations |
+| End date confusion | DTEND is day after at checkout time |
+| Timezone handling | Property timezone → converted to UTC |
 
 ---
 
 ## What Gets Blocked
 
 For maintenance **May 1-30, 2026**:
-- Start: `20260501T000000Z` (May 1 at midnight)
-- End: `20260601T000000Z` (June 1 at midnight)
-- Blocked days: May 1, 2, 3, ..., 29, 30 (30 days total)
-- Available: May 31 onward
+- Start: `20260501T190000Z` (May 1 at 15:00 local)
+- End: `20260531T160000Z` (May 31 at 12:00 local)
+- Blocked: May 1 (from 15:00), May 2-30 (full days), May 31 (until 12:00)
+- Available: Before May 1 at 15:00, after May 31 at 12:00
 
 ---
 

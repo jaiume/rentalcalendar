@@ -43,29 +43,29 @@ END:VEVENT
 
 ## The Solution
 
-Convert maintenance events to **date-time format** (even though they're conceptually all-day events):
+Convert maintenance events to **date-time format** using standard check-in/check-out times (matching reservation format):
 
 ```ics
 BEGIN:VEVENT
 UID:maintenance-8
 SUMMARY:Pool Upgrade
-DTSTART:20260501T000000Z
-DTEND:20260601T000000Z
+DTSTART:20260501T190000Z
+DTEND:20260531T160000Z
 STATUS:CONFIRMED
 END:VEVENT
 ```
 
-**Result:** AirBNB treats this like a real booking and blocks the dates.
+**Result:** AirBNB treats this identically to a real booking and blocks the dates.
 
 ---
 
 ## Why This Works
 
 1. **Uses date-time format** - No `VALUE=DATE`
-2. **Midnight-to-midnight range** - Blocks entire days
-3. **UTC timezone** - Unambiguous across all systems
-4. **DTEND is exclusive** - June 1 at 00:00 means May 1-31 blocked
-5. **Looks like a booking** - AirBNB's parser treats it as a reservation
+2. **Standard check-in/check-out times** - 15:00 and 12:00 (matches reservations exactly)
+3. **Property timezone aware** - Converts to UTC properly
+4. **DTEND is exclusive** - Day after end date at 12:00 means blocks through end date
+5. **Identical to reservations** - AirBNB's parser treats it the same way
 
 ---
 
@@ -80,11 +80,11 @@ $startDate = $this->formatICalDate($maint['maintenance_start_date']);
 $lines[] = 'DTSTART;VALUE=DATE:' . $startDate;
 ```
 
-**After (Date-Time Format):**
+**After (Date-Time Format with Standard Times):**
 ```php
 // AirBNB ignores VALUE=DATE all-day events. Use date-time format instead.
-// Start at midnight UTC on the start date
-$startDateTime = $this->formatICalDateTime($maint['maintenance_start_date'], '00:00:00', 'UTC');
+// Format maintenance like reservations: start at check-in time, end at checkout time
+$startDateTime = $this->formatICalDateTime($maint['maintenance_start_date'], $standardStart, $property['timezone']);
 $lines[] = 'DTSTART:' . $startDateTime;
 ```
 
@@ -110,41 +110,52 @@ END:VEVENT
 BEGIN:VEVENT
 UID:maintenance-3
 SUMMARY:Paused no cleaner
-DTSTART:20251127T000000Z
-DTEND:20251201T000000Z
+DTSTART:20251127T190000Z
+DTEND:20251201T160000Z
 STATUS:CONFIRMED
 END:VEVENT
 ```
 
 ### Key Differences:
 - ❌ Removed: `VALUE=DATE` parameter
-- ✅ Added: Time component `T000000Z`
-- ✅ Start: Midnight UTC on start date
-- ✅ End: Midnight UTC on day AFTER end date (blocks through end date)
+- ✅ Added: Time component `T190000Z` (15:00 local time)
+- ✅ Start: 15:00 on start date (standard check-in)
+- ✅ End: 12:00 on day after end date (standard check-out)
+- ✅ **Identical format to actual reservations**
 
 ---
 
 ## Important Notes
 
+### Uses Standard Check-in/Check-out Times
+Maintenance events now use the exact same times as reservations:
+- **Start:** Standard check-in time (15:00 local)
+- **End:** Standard checkout time (12:00 local) on day after end date
+- **Timezone:** Property's timezone, converted to UTC for iCal
+- **Example:** For America/Port_of_Spain (UTC-4):
+  - 15:00 local = 19:00 UTC (T190000Z)
+  - 12:00 local = 16:00 UTC (T160000Z)
+
 ### DTEND is Exclusive
 In iCalendar specification, `DTEND` is **exclusive**:
-- `DTEND:20251201T000000Z` means the event ends at the **start** of December 1
-- This blocks November 27-30 (exactly 4 days)
-- This is correct behavior
+- `DTEND:20251201T160000Z` means the event ends at 12:00 on December 1
+- This blocks November 27-30 completely (check-in Nov 27 at 15:00, check-out Dec 1 at 12:00)
+- This matches exactly how reservations work
 
-### Timezone: UTC
-Using UTC (`T000000Z`) avoids timezone confusion:
-- Works consistently across all platforms
-- No DST issues
-- Unambiguous interpretation
+### Matches Reservation Format
+Your reservations export like this:
+```ics
+DTSTART:20251227T190000Z  (Dec 27 at 15:00 local)
+DTEND:20260113T160000Z    (Jan 13 at 12:00 local)
+```
 
-### Removed Properties
-The following properties from the previous attempt were removed:
-- `TRANSP:OPAQUE` - Not needed; date-time format is sufficient
-- `CLASS:PUBLIC` - Not needed for blocking
-- `X-MICROSOFT-CDO-BUSYSTATUS:OOF` - Not needed for AirBNB
+Your maintenance now exports identically:
+```ics
+DTSTART:20260501T190000Z  (May 1 at 15:00 local)
+DTEND:20260531T160000Z    (May 31 at 12:00 local)
+```
 
-**Simpler is better** - AirBNB only cares about date-time vs all-day format.
+AirBNB cannot tell the difference!
 
 ---
 

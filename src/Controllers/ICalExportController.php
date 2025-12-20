@@ -124,14 +124,15 @@ class ICalExportController
             }
             
             // AirBNB ignores VALUE=DATE all-day events. Use date-time format instead.
-            // Start at midnight UTC on the start date
-            $startDateTime = $this->formatICalDateTime($maint['maintenance_start_date'], '00:00:00', 'UTC');
+            // Format maintenance like reservations: start at check-in time, end at checkout time
+            // This makes them look identical to actual bookings to AirBNB
+            $startDateTime = $this->formatICalDateTime($maint['maintenance_start_date'], $standardStart, $property['timezone']);
             
-            // End at midnight UTC on the day AFTER the end date (DTEND is exclusive)
-            // This ensures all days including the end date are blocked
-            $endDateObj = new \DateTime($maint['maintenance_end_date'], new \DateTimeZone('UTC'));
+            // End on the day AFTER maintenance_end_date at checkout time
+            // (This blocks through the entire end date)
+            $endDateObj = new \DateTime($maint['maintenance_end_date'], new \DateTimeZone($property['timezone']));
             $endDateObj->modify('+1 day');
-            $endDateTime = $this->formatICalDateTime($endDateObj->format('Y-m-d'), '00:00:00', 'UTC');
+            $endDateTime = $this->formatICalDateTime($endDateObj->format('Y-m-d'), $standardEnd, $property['timezone']);
             
             $lines[] = 'DTSTART:' . $startDateTime;
             $lines[] = 'DTEND:' . $endDateTime;
