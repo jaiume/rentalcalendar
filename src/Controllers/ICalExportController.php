@@ -62,6 +62,9 @@ class ICalExportController
         $lines[] = 'CALSCALE:GREGORIAN';
         $lines[] = 'METHOD:PUBLISH';
         
+        // Generate DTSTAMP for all events (tells AirBNB this is fresh/updated)
+        $dtstamp = (new \DateTime('now', new \DateTimeZone('UTC')))->format('Ymd\THis\Z');
+        
         // Get time values from config
         $earlyStart = $this->config::get('time_windows.early_start_time', '06:00:00');
         $standardStart = $this->config::get('time_windows.standard_start', '15:00:00');
@@ -139,7 +142,8 @@ class ICalExportController
             
             $lines[] = 'BEGIN:VEVENT';
             $lines[] = 'UID:' . $reservation['reservation_guid'];
-            $lines[] = 'SUMMARY:' . $this->escapeICalText($reservation['reservation_name']);
+            $lines[] = 'DTSTAMP:' . $dtstamp;
+            $lines[] = 'SUMMARY:Reserved - ' . $this->escapeICalText($reservation['reservation_name']);
             
             if ($reservation['reservation_description']) {
                 $lines[] = 'DESCRIPTION:' . $this->escapeICalText($reservation['reservation_description']);
@@ -172,7 +176,7 @@ class ICalExportController
                 $endDateTime = $this->formatICalDateTime($adjustedEndDate, $lateEnd, $property['timezone']);
             }
             $lines[] = 'DTEND:' . $endDateTime;
-            
+            $lines[] = 'TRANSP:OPAQUE';
             $lines[] = 'STATUS:CONFIRMED';
             $lines[] = 'END:VEVENT';
         }
@@ -185,8 +189,10 @@ class ICalExportController
             // Use md5 hash of maintenance ID to create a stable, reservation-like UID
             $maintenanceGuid = md5('maintenance-' . $maint['property_maintenance_id']);
             $lines[] = 'UID:' . $maintenanceGuid;
+            $lines[] = 'DTSTAMP:' . $dtstamp;
             
-            $lines[] = 'SUMMARY:' . $this->escapeICalText($maint['maintenance_description']);
+            // Use "Reserved - " prefix to make it look like a real reservation to AirBNB
+            $lines[] = 'SUMMARY:Reserved - ' . $this->escapeICalText($maint['maintenance_description']);
             
             if (!empty($maint['maintenance_type'])) {
                 $lines[] = 'DESCRIPTION:' . $this->escapeICalText($maint['maintenance_type']);
@@ -203,6 +209,7 @@ class ICalExportController
             
             $lines[] = 'DTSTART:' . $startDateTime;
             $lines[] = 'DTEND:' . $endDateTime;
+            $lines[] = 'TRANSP:OPAQUE';
             $lines[] = 'STATUS:CONFIRMED';
             $lines[] = 'END:VEVENT';
         }
