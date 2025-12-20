@@ -123,22 +123,18 @@ class ICalExportController
                 $lines[] = 'DESCRIPTION:' . $this->escapeICalText($maint['maintenance_type']);
             }
             
-            // Add properties to signal this blocks availability
-            $lines[] = 'TRANSP:OPAQUE';  // Mark as busy/unavailable (blocks time)
-            $lines[] = 'CLASS:PUBLIC';   // Event is public
-            $lines[] = 'X-MICROSOFT-CDO-BUSYSTATUS:OOF';  // Out of facility (Microsoft extension)
+            // AirBNB ignores VALUE=DATE all-day events. Use date-time format instead.
+            // Start at midnight UTC on the start date
+            $startDateTime = $this->formatICalDateTime($maint['maintenance_start_date'], '00:00:00', 'UTC');
             
-            // Maintenance is all-day events
-            $startDate = $this->formatICalDate($maint['maintenance_start_date']);
-            $endDate = $this->formatICalDate($maint['maintenance_end_date']);
-            
-            // For all-day events, DTEND is exclusive (next day)
-            $endDateObj = new \DateTime($maint['maintenance_end_date']);
+            // End at midnight UTC on the day AFTER the end date (DTEND is exclusive)
+            // This ensures all days including the end date are blocked
+            $endDateObj = new \DateTime($maint['maintenance_end_date'], new \DateTimeZone('UTC'));
             $endDateObj->modify('+1 day');
-            $endDate = $this->formatICalDate($endDateObj->format('Y-m-d'));
+            $endDateTime = $this->formatICalDateTime($endDateObj->format('Y-m-d'), '00:00:00', 'UTC');
             
-            $lines[] = 'DTSTART;VALUE=DATE:' . $startDate;
-            $lines[] = 'DTEND;VALUE=DATE:' . $endDate;
+            $lines[] = 'DTSTART:' . $startDateTime;
+            $lines[] = 'DTEND:' . $endDateTime;
             $lines[] = 'STATUS:CONFIRMED';
             $lines[] = 'END:VEVENT';
         }
