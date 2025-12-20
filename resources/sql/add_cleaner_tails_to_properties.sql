@@ -3,3 +3,5 @@
 
 ALTER TABLE properties ADD COLUMN cleaner_tails BOOLEAN NOT NULL DEFAULT FALSE;
 
+
+

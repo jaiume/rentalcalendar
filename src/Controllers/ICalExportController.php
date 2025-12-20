@@ -123,6 +123,11 @@ class ICalExportController
                 $lines[] = 'DESCRIPTION:' . $this->escapeICalText($maint['maintenance_type']);
             }
             
+            // Add properties to signal this blocks availability
+            $lines[] = 'TRANSP:OPAQUE';  // Mark as busy/unavailable (blocks time)
+            $lines[] = 'CLASS:PUBLIC';   // Event is public
+            $lines[] = 'X-MICROSOFT-CDO-BUSYSTATUS:OOF';  // Out of facility (Microsoft extension)
+            
             // Maintenance is all-day events
             $startDate = $this->formatICalDate($maint['maintenance_start_date']);
             $endDate = $this->formatICalDate($maint['maintenance_end_date']);

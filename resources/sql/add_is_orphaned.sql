@@ -8,3 +8,5 @@ ADD COLUMN is_orphaned TINYINT(1) NOT NULL DEFAULT 0
 COMMENT 'Set to 1 when reservation is no longer in sync feed but kept for retention period'
 AFTER sync_partner_name;
 
+
+

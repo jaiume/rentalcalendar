@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS property_maintenance (
     maintenance_start_date DATE NOT NULL,
     maintenance_end_date   DATE NOT NULL CHECK (maintenance_end_date >= maintenance_start_date),
     maintenance_description TEXT NOT NULL,
+    maintenance_type       VARCHAR(100) DEFAULT NULL COMMENT 'Type or category of maintenance',
     created_by             BIGINT,
     created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
