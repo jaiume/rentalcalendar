@@ -35,7 +35,7 @@ END:VEVENT
 ### ✅ NEW FORMAT
 ```ics
 BEGIN:VEVENT
-UID:maintenance-8
+UID:88e947fd66c7ea7aade2c16c41b58c53
 SUMMARY:Pool Upgrade
 DTSTART:20260501T190000Z
 DTEND:20260531T160000Z
@@ -49,17 +49,19 @@ END:VEVENT
 
 **Your Reservation (Emma and Doug):**
 ```ics
+UID:98ee6d547aa9c691609e963e57e7e92d
 DTSTART:20251227T190000Z
 DTEND:20260113T160000Z
 ```
 
 **Your Maintenance (Pool Upgrade):**
 ```ics
+UID:88e947fd66c7ea7aade2c16c41b58c53
 DTSTART:20260501T190000Z
 DTEND:20260531T160000Z
 ```
 
-**Result:** Identical format! AirBNB treats both the same way.
+**Result:** Absolutely identical format! Even the UID looks like a reservation GUID.
 
 ---
 

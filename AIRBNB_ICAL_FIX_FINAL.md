@@ -43,11 +43,11 @@ END:VEVENT
 
 ## The Solution
 
-Convert maintenance events to **date-time format** using standard check-in/check-out times (matching reservation format):
+Convert maintenance events to **date-time format** using standard check-in/check-out times and **GUID-based UIDs** (matching reservation format exactly):
 
 ```ics
 BEGIN:VEVENT
-UID:maintenance-8
+UID:88e947fd66c7ea7aade2c16c41b58c53
 SUMMARY:Pool Upgrade
 DTSTART:20260501T190000Z
 DTEND:20260531T160000Z
@@ -63,9 +63,10 @@ END:VEVENT
 
 1. **Uses date-time format** - No `VALUE=DATE`
 2. **Standard check-in/check-out times** - 15:00 and 12:00 (matches reservations exactly)
-3. **Property timezone aware** - Converts to UTC properly
-4. **DTEND is exclusive** - Day after end date at 12:00 means blocks through end date
-5. **Identical to reservations** - AirBNB's parser treats it the same way
+3. **GUID-based UID** - Uses md5 hash to generate 32-char hex UID (identical to reservation UIDs)
+4. **Property timezone aware** - Converts to UTC properly
+5. **DTEND is exclusive** - Day after end date at 12:00 means blocks through end date
+6. **100% identical to reservations** - AirBNB cannot distinguish maintenance from real bookings
 
 ---
 

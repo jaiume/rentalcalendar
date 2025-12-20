@@ -72,8 +72,71 @@ class ICalExportController
         $preReservationDays = (int) $this->config::get('time_windows.pre_reservation_days', 0);
         $postReservationDays = (int) $this->config::get('time_windows.post_reservation_days', 0);
 
-        // Add reservations
-        foreach ($reservations as $reservation) {
+        // Sort reservations by start date to detect overlaps
+        usort($reservations, function($a, $b) {
+            return strcmp($a['reservation_start_date'], $b['reservation_start_date']);
+        });
+        
+        // Calculate effective buffers for each reservation (to prevent overlaps)
+        $reservationCount = count($reservations);
+        $effectiveBuffers = [];
+        
+        for ($i = 0; $i < $reservationCount; $i++) {
+            $reservation = $reservations[$i];
+            $effectivePreDays = $preReservationDays;
+            $effectivePostDays = $postReservationDays;
+            
+            // Check if we need to reduce buffers due to adjacent reservations
+            if ($i > 0) {
+                // Check gap with previous reservation
+                $prevReservation = $reservations[$i - 1];
+                $prevEndDate = new \DateTime($prevReservation['reservation_end_date']);
+                $thisStartDate = new \DateTime($reservation['reservation_start_date']);
+                $gapDays = (int) $prevEndDate->diff($thisStartDate)->days;
+                
+                // If previous end is after this start, gap is 0
+                if ($prevEndDate >= $thisStartDate) {
+                    $gapDays = 0;
+                }
+                
+                // Available buffer space = gap days
+                // Previous reservation's post-buffer gets priority (already committed)
+                $prevPostDays = $effectiveBuffers[$i - 1]['post'] ?? $postReservationDays;
+                $remainingGap = max(0, $gapDays - $prevPostDays);
+                
+                // This reservation's pre-buffer is limited to remaining gap
+                $effectivePreDays = min($preReservationDays, $remainingGap);
+            }
+            
+            if ($i < $reservationCount - 1) {
+                // Check gap with next reservation
+                $nextReservation = $reservations[$i + 1];
+                $thisEndDate = new \DateTime($reservation['reservation_end_date']);
+                $nextStartDate = new \DateTime($nextReservation['reservation_start_date']);
+                $gapDays = (int) $thisEndDate->diff($nextStartDate)->days;
+                
+                // If this end is after next start, gap is 0
+                if ($thisEndDate >= $nextStartDate) {
+                    $gapDays = 0;
+                }
+                
+                // This reservation's post-buffer is limited by gap and next's pre-buffer need
+                // Give this reservation as much post-buffer as possible, remainder goes to next's pre
+                $effectivePostDays = min($postReservationDays, $gapDays);
+            }
+            
+            $effectiveBuffers[$i] = [
+                'pre' => $effectivePreDays,
+                'post' => $effectivePostDays
+            ];
+        }
+
+        // Add reservations with adjusted buffers
+        for ($i = 0; $i < $reservationCount; $i++) {
+            $reservation = $reservations[$i];
+            $effectivePre = $effectiveBuffers[$i]['pre'];
+            $effectivePost = $effectiveBuffers[$i]['post'];
+            
             $lines[] = 'BEGIN:VEVENT';
             $lines[] = 'UID:' . $reservation['reservation_guid'];
             $lines[] = 'SUMMARY:' . $this->escapeICalText($reservation['reservation_name']);
@@ -82,11 +145,10 @@ class ICalExportController
                 $lines[] = 'DESCRIPTION:' . $this->escapeICalText($reservation['reservation_description']);
             }
             
-            // Calculate start datetime with pre-reservation buffer
-            // For internal reservations, subtract pre_reservation_days from start date
+            // Calculate start datetime with effective pre-reservation buffer
             $startDateObj = new \DateTime($reservation['reservation_start_date'], new \DateTimeZone($property['timezone']));
-            if ($preReservationDays > 0) {
-                $startDateObj->modify('-' . $preReservationDays . ' days');
+            if ($effectivePre > 0) {
+                $startDateObj->modify('-' . $effectivePre . ' days');
             }
             $adjustedStartDate = $startDateObj->format('Y-m-d');
             
@@ -94,10 +156,12 @@ class ICalExportController
             $startDateTime = $this->formatICalDateTime($adjustedStartDate, $startTime, $property['timezone']);
             $lines[] = 'DTSTART:' . $startDateTime;
             
-            // Calculate end datetime with post-reservation buffer
-            // Add post_reservation_days + 1 day to end date for AirBNB compatibility (DTEND is exclusive)
+            // Calculate end datetime with effective post-reservation buffer
+            // For date-time format, DTEND is the exact checkout moment (no +1 needed like VALUE=DATE)
             $endDateObj = new \DateTime($reservation['reservation_end_date'], new \DateTimeZone($property['timezone']));
-            $endDateObj->modify('+' . ($postReservationDays + 1) . ' days');
+            if ($effectivePost > 0) {
+                $endDateObj->modify('+' . $effectivePost . ' days');
+            }
             $adjustedEndDate = $endDateObj->format('Y-m-d');
             
             if ($reservation['reservation_end_time'] === 'standard') {
@@ -116,7 +180,12 @@ class ICalExportController
         // Add maintenance
         foreach ($maintenance as $maint) {
             $lines[] = 'BEGIN:VEVENT';
-            $lines[] = 'UID:maintenance-' . $maint['property_maintenance_id'];
+            
+            // Generate a consistent GUID for this maintenance event (looks like a real reservation)
+            // Use md5 hash of maintenance ID to create a stable, reservation-like UID
+            $maintenanceGuid = md5('maintenance-' . $maint['property_maintenance_id']);
+            $lines[] = 'UID:' . $maintenanceGuid;
+            
             $lines[] = 'SUMMARY:' . $this->escapeICalText($maint['maintenance_description']);
             
             if (!empty($maint['maintenance_type'])) {
@@ -128,11 +197,9 @@ class ICalExportController
             // This makes them look identical to actual bookings to AirBNB
             $startDateTime = $this->formatICalDateTime($maint['maintenance_start_date'], $standardStart, $property['timezone']);
             
-            // End on the day AFTER maintenance_end_date at checkout time
-            // (This blocks through the entire end date)
-            $endDateObj = new \DateTime($maint['maintenance_end_date'], new \DateTimeZone($property['timezone']));
-            $endDateObj->modify('+1 day');
-            $endDateTime = $this->formatICalDateTime($endDateObj->format('Y-m-d'), $standardEnd, $property['timezone']);
+            // End at checkout time on the maintenance end date
+            // (Property is available for check-in same day at 3pm, just like after a reservation checkout)
+            $endDateTime = $this->formatICalDateTime($maint['maintenance_end_date'], $standardEnd, $property['timezone']);
             
             $lines[] = 'DTSTART:' . $startDateTime;
             $lines[] = 'DTEND:' . $endDateTime;
