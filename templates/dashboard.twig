@@ -1158,7 +1158,8 @@ class Dashboard {
 
     const today = new Date();
     const startDate = today.toISOString().split('T')[0];
-    const endDate = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate()).toISOString().split('T')[0];
+    // Show events up to 5 years in the future to include all bookings
+    const endDate = new Date(today.getFullYear() + 5, today.getMonth(), today.getDate()).toISOString().split('T')[0];
     
     await this.loadEvents(startDate, endDate, this.selectedPropertyId);
     

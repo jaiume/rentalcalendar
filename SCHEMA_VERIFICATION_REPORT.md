@@ -147,3 +147,4 @@ You should see `maintenance_type` column listed between `maintenance_description
 - The `is_orphaned` column in `reservations` table is correctly present in both schema and database
 - No other discrepancies found during verification
 
+

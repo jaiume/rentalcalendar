@@ -6,3 +6,4 @@ ADD COLUMN maintenance_type VARCHAR(100) DEFAULT NULL
 COMMENT 'Type or category of maintenance'
 AFTER maintenance_description;
 
+
