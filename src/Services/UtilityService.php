@@ -48,7 +48,23 @@ class UtilityService
 
             return $mail->send();
         } catch (Exception $e) {
-            // @todo integrate with logger
+            LogService::error('Failed to send email (PHPMailer)', [
+                'to' => $to,
+                'subject' => $subject,
+                'error' => $e->getMessage(),
+                'smtp_host' => $this->config::get('mail.smtp_host'),
+                'smtp_port' => $this->config::get('mail.smtp_port'),
+            ]);
+            return false;
+        } catch (\Throwable $e) {
+            LogService::error('Failed to send email (General)', [
+                'to' => $to,
+                'subject' => $subject,
+                'error' => $e->getMessage(),
+                'exception_type' => get_class($e),
+                'smtp_host' => $this->config::get('mail.smtp_host'),
+                'smtp_port' => $this->config::get('mail.smtp_port'),
+            ]);
             return false;
         }
     }
