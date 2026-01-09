@@ -17,48 +17,97 @@ echo "=== SMTP Connection Test ===\n\n";
 echo "Host: {$config['mail']['smtp_host']}\n";
 echo "Port: {$config['mail']['smtp_port']}\n";
 echo "User: {$config['mail']['smtp_user']}\n";
-echo "From: {$config['mail']['from_email']}\n\n";
+echo "From: {$config['mail']['from_email']}\n";
+echo "PHP Version: " . PHP_VERSION . "\n";
+echo "OpenSSL Version: " . OPENSSL_VERSION_TEXT . "\n\n";
 
-$mail = new PHPMailer(true);
-
-try {
-    // Enable verbose debug output
-    $mail->SMTPDebug = SMTP::DEBUG_CONNECTION;
-    $mail->Debugoutput = function($str, $level) {
-        echo "DEBUG[$level]: $str\n";
-    };
-    
-    $mail->isSMTP();
-    $mail->Host = $config['mail']['smtp_host'];
-    $mail->SMTPAuth = true;
-    $mail->Username = $config['mail']['smtp_user'];
-    $mail->Password = $config['mail']['smtp_pass'];
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port = $config['mail']['smtp_port'];
-    $mail->Timeout = 30; // Increase timeout
-    
-    // SSL options
-    $mail->SMTPOptions = [
-        'ssl' => [
-            'verify_peer' => false,
-            'verify_peer_name' => false,
-            'allow_self_signed' => true,
+// Test different configurations
+$tests = [
+    [
+        'name' => 'STARTTLS with TLS 1.2 forced',
+        'port' => 587,
+        'secure' => PHPMailer::ENCRYPTION_STARTTLS,
+        'options' => [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true,
+                'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
+            ],
         ],
-    ];
+    ],
+    [
+        'name' => 'STARTTLS with any TLS version',
+        'port' => 587,
+        'secure' => PHPMailer::ENCRYPTION_STARTTLS,
+        'options' => [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true,
+                'crypto_method' => STREAM_CRYPTO_METHOD_TLS_CLIENT,
+            ],
+        ],
+    ],
+    [
+        'name' => 'SMTPS (SSL on port 465)',
+        'port' => 465,
+        'secure' => PHPMailer::ENCRYPTION_SMTPS,
+        'options' => [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true,
+            ],
+        ],
+    ],
+    [
+        'name' => 'No encryption (port 25)',
+        'port' => 25,
+        'secure' => '',
+        'options' => [],
+    ],
+];
+
+foreach ($tests as $test) {
+    echo "=== Testing: {$test['name']} (port {$test['port']}) ===\n";
     
-    $mail->setFrom($config['mail']['from_email'], $config['mail']['from_name']);
-    $mail->addAddress($config['mail']['from_email']); // Send test to self
+    $mail = new PHPMailer(true);
     
-    $mail->isHTML(false);
-    $mail->Subject = 'SMTP Test - ' . date('Y-m-d H:i:s');
-    $mail->Body = 'This is a test email to verify SMTP connectivity.';
-    
-    echo "\n=== Attempting to send... ===\n\n";
-    
-    if ($mail->send()) {
-        echo "\n✓ SUCCESS: Email sent!\n";
+    try {
+        $mail->SMTPDebug = SMTP::DEBUG_SERVER;
+        $mail->Debugoutput = function($str, $level) {
+            $str = trim($str);
+            if ($str) echo "  $str\n";
+        };
+        
+        $mail->isSMTP();
+        $mail->Host = $config['mail']['smtp_host'];
+        $mail->SMTPAuth = true;
+        $mail->Username = $config['mail']['smtp_user'];
+        $mail->Password = $config['mail']['smtp_pass'];
+        $mail->SMTPSecure = $test['secure'];
+        $mail->Port = $test['port'];
+        $mail->Timeout = 15;
+        
+        if (!empty($test['options'])) {
+            $mail->SMTPOptions = $test['options'];
+        }
+        
+        $mail->setFrom($config['mail']['from_email'], $config['mail']['from_name']);
+        $mail->addAddress($config['mail']['from_email']);
+        
+        $mail->isHTML(false);
+        $mail->Subject = 'SMTP Test - ' . date('Y-m-d H:i:s');
+        $mail->Body = 'This is a test email to verify SMTP connectivity.';
+        
+        if ($mail->send()) {
+            echo "\n  ✓ SUCCESS: Email sent!\n\n";
+            break; // Stop on first success
+        }
+    } catch (Exception $e) {
+        echo "\n  ✗ FAILED: {$mail->ErrorInfo}\n\n";
     }
-} catch (Exception $e) {
-    echo "\n✗ FAILED: {$mail->ErrorInfo}\n";
-    echo "Exception: {$e->getMessage()}\n";
 }
+
+echo "=== Tests complete ===\n";
