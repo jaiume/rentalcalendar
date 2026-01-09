@@ -24,6 +24,19 @@ echo "OpenSSL Version: " . OPENSSL_VERSION_TEXT . "\n\n";
 // Test different configurations
 $tests = [
     [
+        'name' => 'STARTTLS with SECLEVEL=0 (SHA-1 fix)',
+        'port' => 587,
+        'secure' => PHPMailer::ENCRYPTION_STARTTLS,
+        'options' => [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true,
+                'ciphers' => 'DEFAULT@SECLEVEL=0',
+            ],
+        ],
+    ],
+    [
         'name' => 'STARTTLS with TLS 1.2 forced',
         'port' => 587,
         'secure' => PHPMailer::ENCRYPTION_STARTTLS,
@@ -33,19 +46,6 @@ $tests = [
                 'verify_peer_name' => false,
                 'allow_self_signed' => true,
                 'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
-            ],
-        ],
-    ],
-    [
-        'name' => 'STARTTLS with any TLS version',
-        'port' => 587,
-        'secure' => PHPMailer::ENCRYPTION_STARTTLS,
-        'options' => [
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true,
-                'crypto_method' => STREAM_CRYPTO_METHOD_TLS_CLIENT,
             ],
         ],
     ],

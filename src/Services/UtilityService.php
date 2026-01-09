@@ -27,12 +27,14 @@ class UtilityService
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port = $this->config::get('mail.smtp_port');
 
-            // Allow self-signed certificates
+            // Allow self-signed certificates and SHA-1 signatures (legacy Exchange server)
+            // The Exchange server uses RSA-SHA1 which OpenSSL 3.0 rejects at default SECLEVEL=2
             $mail->SMTPOptions = [
                 'ssl' => [
                     'verify_peer' => false,
                     'verify_peer_name' => false,
                     'allow_self_signed' => true,
+                    'ciphers' => 'DEFAULT@SECLEVEL=0',
                 ],
             ];
 
