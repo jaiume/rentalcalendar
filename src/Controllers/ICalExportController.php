@@ -144,12 +144,15 @@ class ICalExportController
             $lines[] = 'BEGIN:VEVENT';
             $lines[] = 'UID:' . $reservation['reservation_guid'];
             $lines[] = 'DTSTAMP:' . $dtstamp;
-            // Use "Blocked - " prefix for Airbnb compatibility (Airbnb recognizes "Blocked" keyword)
-            $lines[] = 'SUMMARY:Blocked - ' . $this->escapeICalText($reservation['reservation_name']);
+            // Use plain "Blocked" for maximum Airbnb compatibility
+            $lines[] = 'SUMMARY:Blocked';
             
+            // Put reservation details in DESCRIPTION (visible in Google/Outlook/Apple Calendar)
+            $description = $reservation['reservation_name'];
             if ($reservation['reservation_description']) {
-                $lines[] = 'DESCRIPTION:' . $this->escapeICalText($reservation['reservation_description']);
+                $description .= ' - ' . $reservation['reservation_description'];
             }
+            $lines[] = 'DESCRIPTION:' . $this->escapeICalText($description);
             
             // Calculate start date with effective pre-reservation buffer
             $startDateObj = new \DateTime($reservation['reservation_start_date']);
@@ -183,12 +186,15 @@ class ICalExportController
             $lines[] = 'UID:' . $maintenanceGuid;
             $lines[] = 'DTSTAMP:' . $dtstamp;
             
-            // Use "Blocked - " prefix for Airbnb compatibility (Airbnb recognizes "Blocked" keyword)
-            $lines[] = 'SUMMARY:Blocked - ' . $this->escapeICalText($maint['maintenance_description']);
+            // Use plain "Blocked" for maximum Airbnb compatibility
+            $lines[] = 'SUMMARY:Blocked';
             
+            // Put maintenance details in DESCRIPTION (visible in Google/Outlook/Apple Calendar)
+            $description = $maint['maintenance_description'];
             if (!empty($maint['maintenance_type'])) {
-                $lines[] = 'DESCRIPTION:' . $this->escapeICalText($maint['maintenance_type']);
+                $description .= ' (' . $maint['maintenance_type'] . ')';
             }
+            $lines[] = 'DESCRIPTION:' . $this->escapeICalText($description);
             
             // Airbnb prefers VALUE=DATE format (all-day events, no times)
             $lines[] = 'DTSTART;VALUE=DATE:' . $this->formatICalDate($maint['maintenance_start_date']);
