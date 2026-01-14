@@ -135,6 +135,7 @@ class ICalExportController
         }
 
         // Add reservations with adjusted buffers
+        // Using Airbnb-friendly VALUE=DATE format (all-day events)
         for ($i = 0; $i < $reservationCount; $i++) {
             $reservation = $reservations[$i];
             $effectivePre = $effectiveBuffers[$i]['pre'];
@@ -143,74 +144,61 @@ class ICalExportController
             $lines[] = 'BEGIN:VEVENT';
             $lines[] = 'UID:' . $reservation['reservation_guid'];
             $lines[] = 'DTSTAMP:' . $dtstamp;
-            $lines[] = 'SUMMARY:Reserved - ' . $this->escapeICalText($reservation['reservation_name']);
+            // Use "Blocked - " prefix for Airbnb compatibility (Airbnb recognizes "Blocked" keyword)
+            $lines[] = 'SUMMARY:Blocked - ' . $this->escapeICalText($reservation['reservation_name']);
             
             if ($reservation['reservation_description']) {
                 $lines[] = 'DESCRIPTION:' . $this->escapeICalText($reservation['reservation_description']);
             }
             
-            // Calculate start datetime with effective pre-reservation buffer
-            $startDateObj = new \DateTime($reservation['reservation_start_date'], new \DateTimeZone($property['timezone']));
+            // Calculate start date with effective pre-reservation buffer
+            $startDateObj = new \DateTime($reservation['reservation_start_date']);
             if ($effectivePre > 0) {
                 $startDateObj->modify('-' . $effectivePre . ' days');
             }
-            $adjustedStartDate = $startDateObj->format('Y-m-d');
+            // Airbnb prefers VALUE=DATE format (all-day events, no times)
+            $lines[] = 'DTSTART;VALUE=DATE:' . $this->formatICalDate($startDateObj->format('Y-m-d'));
             
-            $startTime = $reservation['reservation_start_time'] === 'early' ? $earlyStart : $standardStart;
-            $startDateTime = $this->formatICalDateTime($adjustedStartDate, $startTime, $property['timezone']);
-            $lines[] = 'DTSTART:' . $startDateTime;
-            
-            // Calculate end datetime with effective post-reservation buffer
-            // For date-time format, DTEND is the exact checkout moment (no +1 needed like VALUE=DATE)
-            $endDateObj = new \DateTime($reservation['reservation_end_date'], new \DateTimeZone($property['timezone']));
+            // Calculate end date with effective post-reservation buffer
+            // For VALUE=DATE, DTEND is exclusive (first day NOT blocked)
+            // So we need the day AFTER the last blocked day (checkout day)
+            $endDateObj = new \DateTime($reservation['reservation_end_date']);
             if ($effectivePost > 0) {
                 $endDateObj->modify('+' . $effectivePost . ' days');
             }
-            $adjustedEndDate = $endDateObj->format('Y-m-d');
-            
-            if ($reservation['reservation_end_time'] === 'standard') {
-                // Standard end is 12:00 PM (checkout time) on the adjusted end date
-                $endDateTime = $this->formatICalDateTime($adjustedEndDate, $standardEnd, $property['timezone']);
-            } else {
-                // Late end is 10:00 PM on the adjusted end date
-                $endDateTime = $this->formatICalDateTime($adjustedEndDate, $lateEnd, $property['timezone']);
-            }
-            $lines[] = 'DTEND:' . $endDateTime;
-            $lines[] = 'TRANSP:OPAQUE';
-            $lines[] = 'STATUS:CONFIRMED';
+            // Add 1 day for exclusive DTEND semantics
+            $endDateObj->modify('+1 day');
+            $lines[] = 'DTEND;VALUE=DATE:' . $this->formatICalDate($endDateObj->format('Y-m-d'));
+            // Note: TRANSP and STATUS removed - Airbnb ignores these fields
             $lines[] = 'END:VEVENT';
         }
 
-        // Add maintenance
+        // Add maintenance events using Airbnb-friendly VALUE=DATE format
         foreach ($maintenance as $maint) {
             $lines[] = 'BEGIN:VEVENT';
             
-            // Generate a consistent GUID for this maintenance event (looks like a real reservation)
+            // Generate a consistent GUID for this maintenance event
             // Use md5 hash of maintenance ID to create a stable, reservation-like UID
             $maintenanceGuid = md5('maintenance-' . $maint['property_maintenance_id']);
             $lines[] = 'UID:' . $maintenanceGuid;
             $lines[] = 'DTSTAMP:' . $dtstamp;
             
-            // Use "Reserved - " prefix to make it look like a real reservation to AirBNB
-            $lines[] = 'SUMMARY:Reserved - ' . $this->escapeICalText($maint['maintenance_description']);
+            // Use "Blocked - " prefix for Airbnb compatibility (Airbnb recognizes "Blocked" keyword)
+            $lines[] = 'SUMMARY:Blocked - ' . $this->escapeICalText($maint['maintenance_description']);
             
             if (!empty($maint['maintenance_type'])) {
                 $lines[] = 'DESCRIPTION:' . $this->escapeICalText($maint['maintenance_type']);
             }
             
-            // AirBNB ignores VALUE=DATE all-day events. Use date-time format instead.
-            // Format maintenance like reservations: start at check-in time, end at checkout time
-            // This makes them look identical to actual bookings to AirBNB
-            $startDateTime = $this->formatICalDateTime($maint['maintenance_start_date'], $standardStart, $property['timezone']);
+            // Airbnb prefers VALUE=DATE format (all-day events, no times)
+            $lines[] = 'DTSTART;VALUE=DATE:' . $this->formatICalDate($maint['maintenance_start_date']);
             
-            // End at checkout time on the maintenance end date
-            // (Property is available for check-in same day at 3pm, just like after a reservation checkout)
-            $endDateTime = $this->formatICalDateTime($maint['maintenance_end_date'], $standardEnd, $property['timezone']);
-            
-            $lines[] = 'DTSTART:' . $startDateTime;
-            $lines[] = 'DTEND:' . $endDateTime;
-            $lines[] = 'TRANSP:OPAQUE';
-            $lines[] = 'STATUS:CONFIRMED';
+            // For VALUE=DATE, DTEND is exclusive (first day NOT blocked)
+            // So we need the day AFTER the last maintenance day
+            $endDateObj = new \DateTime($maint['maintenance_end_date']);
+            $endDateObj->modify('+1 day');
+            $lines[] = 'DTEND;VALUE=DATE:' . $this->formatICalDate($endDateObj->format('Y-m-d'));
+            // Note: TRANSP and STATUS removed - Airbnb ignores these fields
             $lines[] = 'END:VEVENT';
         }
 
