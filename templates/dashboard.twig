@@ -2489,24 +2489,25 @@ class Dashboard {
     const eventId = document.getElementById('eventId').value;
     const isNewEvent = !eventId;
 
-    // Validate that new events cannot be created in the past
+    // Validate that new events cannot be created in the past.
+    // Build todayStr from local date components to avoid UTC-parsing shifting
+    // the date when using new Date('YYYY-MM-DD') in browsers.
     if (isNewEvent) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      
-      if (start < today) {
+      const _now = new Date();
+      const todayStr = [
+        _now.getFullYear(),
+        String(_now.getMonth() + 1).padStart(2, '0'),
+        String(_now.getDate()).padStart(2, '0')
+      ].join('-');
+
+      if (startDate < todayStr) {
         alert('Error: Cannot create events in the past. Please select today or a future date.');
         return;
       }
-      
+
       // For events with end dates, also check the end date
       if (endDate && type !== 'cleaning') {
-        const end = new Date(endDate);
-        end.setHours(0, 0, 0, 0);
-        if (end < today) {
+        if (endDate < todayStr) {
           alert('Error: Cannot create events in the past. Please select today or a future date.');
           return;
         }
