@@ -1482,9 +1482,7 @@ class Dashboard {
         const nextEventDate = this.findNextEventDate(propertyId, cleaningBeforeThis.cleaning_date);
         
         // Check if this date is in the tail range (after cleaning, before next event)
-        const dayAfterCleaning = new Date(cleaningBeforeThis.cleaning_date);
-        dayAfterCleaning.setDate(dayAfterCleaning.getDate() + 1);
-        const dayAfterCleaningStr = dayAfterCleaning.toISOString().split('T')[0];
+        const dayAfterCleaningStr = this.addDaysToDateString(cleaningBeforeThis.cleaning_date, 1);
         
         // This date should show tail if: it's >= day after cleaning AND (no next event OR < next event date)
         if (dateStr >= dayAfterCleaningStr && (!nextEventDate || dateStr < nextEventDate)) {
@@ -1791,9 +1789,7 @@ class Dashboard {
         const nextEventDate = this.findNextEventDate(propertyId, cleaningBeforeThis.cleaning_date);
         
         // Check if this date is in the tail range (after cleaning, before next event)
-        const dayAfterCleaning = new Date(cleaningBeforeThis.cleaning_date);
-        dayAfterCleaning.setDate(dayAfterCleaning.getDate() + 1);
-        const dayAfterCleaningStr = dayAfterCleaning.toISOString().split('T')[0];
+        const dayAfterCleaningStr = this.addDaysToDateString(cleaningBeforeThis.cleaning_date, 1);
         
         // This date should show tail if: it's >= day after cleaning AND (no next event OR < next event date)
         if (dateStr >= dayAfterCleaningStr && (!nextEventDate || dateStr < nextEventDate)) {
@@ -2179,18 +2175,51 @@ class Dashboard {
   }
 
   /**
-   * Find the next event date for a property after a given date
-   * Returns the date string of the next event or null if none found
+   * Adds days to a YYYY-MM-DD string using UTC-safe date math.
+   */
+  addDaysToDateString(dateStr, days) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const utcDate = new Date(Date.UTC(year, month - 1, day));
+    utcDate.setUTCDate(utcDate.getUTCDate() + days);
+
+    const nextYear = utcDate.getUTCFullYear();
+    const nextMonth = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+    const nextDay = String(utcDate.getUTCDate()).padStart(2, '0');
+
+    return `${nextYear}-${nextMonth}-${nextDay}`;
+  }
+
+  /**
+   * Find the earliest date that should stop cleaner tails after `afterDate`.
+   * This includes overlapping events (except checkout-day reservation overlap).
    */
   findNextEventDate(propertyId, afterDate) {
     let nextDate = null;
+
+    const updateNextDate = (candidateDate) => {
+      if (!nextDate || candidateDate < nextDate) {
+        nextDate = candidateDate;
+      }
+    };
     
     // Check reservations
     this.events.reservations
-      .filter(r => r.property_id == propertyId && r.reservation_start_date > afterDate)
+      .filter(r => r.property_id == propertyId)
       .forEach(r => {
-        if (!nextDate || r.reservation_start_date < nextDate) {
-          nextDate = r.reservation_start_date;
+        const overlapsAfterDate = r.reservation_start_date <= afterDate && r.reservation_end_date >= afterDate;
+        const isCheckoutDayOverlap = overlapsAfterDate &&
+          r.reservation_end_date === afterDate &&
+          r.reservation_start_date < afterDate;
+
+        // Checkout-day cleaning should still allow tails.
+        if (isCheckoutDayOverlap) {
+          return;
+        }
+
+        if (overlapsAfterDate) {
+          updateNextDate(afterDate);
+        } else if (r.reservation_start_date > afterDate) {
+          updateNextDate(r.reservation_start_date);
         }
       });
     
@@ -2198,17 +2227,19 @@ class Dashboard {
     this.events.cleaning
       .filter(c => c.property_id == propertyId && c.cleaning_date > afterDate)
       .forEach(c => {
-        if (!nextDate || c.cleaning_date < nextDate) {
-          nextDate = c.cleaning_date;
-        }
+        updateNextDate(c.cleaning_date);
       });
     
     // Check maintenance events
     this.events.maintenance
-      .filter(m => m.property_id == propertyId && m.maintenance_start_date > afterDate)
+      .filter(m => m.property_id == propertyId)
       .forEach(m => {
-        if (!nextDate || m.maintenance_start_date < nextDate) {
-          nextDate = m.maintenance_start_date;
+        const overlapsAfterDate = m.maintenance_start_date <= afterDate && m.maintenance_end_date >= afterDate;
+
+        if (overlapsAfterDate) {
+          updateNextDate(afterDate);
+        } else if (m.maintenance_start_date > afterDate) {
+          updateNextDate(m.maintenance_start_date);
         }
       });
     
