@@ -79,7 +79,7 @@
         </div>
         </div>
         <div class="card-body p-0">
-          <div id="multiCalendarContainer" style="overflow: auto; max-height: 70vh;">
+          <div id="multiCalendarContainer" style="overflow: auto; overflow-anchor: none; max-height: 70vh;">
             <table class="table table-bordered mb-0" id="multiCalendarTable" style="position: relative;">
               <thead id="multiCalendarHeader"></thead>
               <tbody id="multiCalendarBody" style="position: relative;"></tbody>
@@ -104,7 +104,8 @@
           </div>
         </div>
         <div class="card-body p-0">
-          <div id="singleCalendarContainer" style="overflow-x: auto;">
+          <div id="singleCalendarDayNames" class="calendar-grid calendar-day-names-row"></div>
+          <div id="singleCalendarContainer" style="overflow-y: auto; max-height: 65vh; overflow-anchor: none;">
             <div id="singleCalendarGrid" class="calendar-grid"></div>
           </div>
         </div>
@@ -278,6 +279,18 @@
   overflow: visible;
 }
 
+.calendar-day-names-row {
+  border-bottom: none;
+}
+
+.calendar-day-header {
+  background: #f8f9fa;
+  font-weight: bold;
+  text-align: center;
+  padding: 8px;
+  font-size: 0.875rem;
+}
+
 .calendar-day {
   background: white;
   min-height: 120px;
@@ -290,7 +303,20 @@
 }
 
 .calendar-day:hover {
-  background: #f8f9fa;
+  background: #f0f4ff;
+}
+
+.calendar-day.month-even {
+  background: #ffffff;
+}
+
+.calendar-day.month-odd {
+  background: #f4f6fb;
+}
+
+.calendar-day.month-even:hover,
+.calendar-day.month-odd:hover {
+  background: #eef2ff;
 }
 
 .calendar-day.other-month {
@@ -322,18 +348,35 @@
   border-bottom: 1px solid #f0f0f0;
   overflow: visible;
 }
-
 .calendar-day-row:last-child {
   border-bottom: none;
 }
+
+/* Event zone sits below the day number, fills the rest of the cell */
+.calendar-day-event-zone {
+  flex: 1;
+  position: relative;
+  min-height: 60px;
+}
+
+/* All three rows overlay the same zone; cleaning/maintenance sit in front */
+.calendar-day-row {
+  position: absolute;
+  top: 4px; bottom: auto; left: 0; right: 0;
+  height: 28px;
+  overflow: visible;
+}
+.calendar-day-row[data-row-type="reservation"] { z-index: 1; }
+.calendar-day-row[data-row-type="maintenance"] { z-index: 2; }
+.calendar-day-row[data-row-type="cleaning"]    { z-index: 3; }
 
 .calendar-event-span {
   position: absolute;
   top: 2px;
   bottom: 2px;
-  padding: 2px 4px;
+  padding: 2px 6px;
   font-size: 0.7rem;
-  border-radius: 2px;
+  border-radius: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -345,14 +388,28 @@
 .event-bar {
   width: 100%;
   padding: 2px 6px;
-  margin: 2px 0;
-  border-radius: 3px;
+  margin: 0;
+  border-radius: 6px;
   font-size: 0.75rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
   display: block;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+/* Cleaning/maintenance single-day events: fill the overlay zone like a bar */
+.calendar-day-row[data-row-type="cleaning"] .event-bar,
+.calendar-day-row[data-row-type="maintenance"] .event-bar {
+  position: absolute;
+  top: 2px; bottom: 2px; left: 2px; right: 2px;
+  width: auto;
+  margin: 0;
+  border-radius: 6px;
 }
 
 .event-reservation {
@@ -392,7 +449,7 @@
   background: #f8f9fa;
   position: sticky;
   left: 0;
-  z-index: 10;
+  z-index: 20;
   min-width: 200px;
   padding: 8px;
   border-right: 2px solid #dee2e6;
@@ -401,25 +458,69 @@
 /* Sticky header for vertical scrolling */
 #multiCalendarHeader th {
   position: sticky;
-  top: 0;
+  top: 24px;
   background: #f8f9fa;
   z-index: 20;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Month banner row - first row of the header */
+#multiCalendarMonthRow th {
+  position: sticky;
+  top: 0;
+  background: #f0f4ff;
+  z-index: 22;
+  padding: 3px 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #4a5568;
+  border-bottom: 2px solid #c8d4e8;
+  white-space: nowrap;
+  height: 24px;
+  vertical-align: middle;
+}
+
+.multi-calendar-month-banner {
+  text-align: center;
+  border-left: 2px solid #c8d4e8;
 }
 
 /* Property header cell needs to be sticky both horizontally and vertically */
 #multiCalendarHeader th.multi-calendar-property {
   position: sticky;
   left: 0;
-  top: 0;
+  top: 24px;
   z-index: 30;
   background: #f8f9fa;
 }
 
+/* Corner of the month banner row */
+#multiCalendarMonthRow th.multi-calendar-property {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 32;
+  background: #f8f9fa;
+  border-bottom: 2px solid #c8d4e8;
+}
+
+/* Single-property month watermark */
+.month-watermark {
+  position: absolute;
+  pointer-events: none;
+  font-size: 3.5rem;
+  font-weight: 900;
+  color: rgba(80, 100, 160, 0.055);
+  z-index: 0;
+  white-space: nowrap;
+  line-height: 1;
+  user-select: none;
+}
+
 .multi-calendar-cell {
-  min-width: 40px;
-  width: 40px;
-  min-height: 60px;
+  min-width: 54px;
+  width: 54px;
+  height: 36px;
   text-align: center;
   padding: 0;
   position: relative;
@@ -436,30 +537,30 @@
 }
 
 .multi-calendar-cell-row {
-  min-height: 20px;
-  padding: 2px 0;
-  position: relative;
-  border-bottom: 1px solid #f0f0f0;
+  position: absolute;
+  left: 0;
+  right: 0;
   overflow: visible;
 }
 
-.multi-calendar-cell-row:last-child {
-  border-bottom: none;
-}
+/* Stacking: all rows share the same vertical zone; cleaning/maintenance overlay reservations */
+.multi-calendar-cell-row[data-row-type="reservation"] { top: 0; bottom: 8px; z-index: 1; }
+.multi-calendar-cell-row[data-row-type="maintenance"] { top: 0; bottom: 8px; z-index: 2; }
+.multi-calendar-cell-row[data-row-type="cleaning"]    { top: 0; bottom: 8px; z-index: 3; }
 
 .multi-calendar-event-span {
   position: absolute;
-  top: 2px;
-  bottom: 2px;
-  padding: 2px 4px;
+  top: 3px;
+  bottom: 3px;
+  padding: 0 4px;
   font-size: 0.7rem;
-  border-radius: 2px;
+  border-radius: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   display: flex;
   align-items: center;
-  z-index: 10;
+  z-index: 5;
 }
 
 .multi-calendar-cell:hover {
@@ -475,14 +576,29 @@
 }
 
 .multi-calendar-event {
-  width: 100%;
   padding: 2px 4px;
   font-size: 0.7rem;
-  border-radius: 2px;
+  border-radius: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   display: block;
+  margin: 2px 2px 0;
+  width: calc(100% - 4px);
+}
+
+/* Cleaning/maintenance single-day events: stretch to fill the overlay row */
+.multi-calendar-cell-row[data-row-type="cleaning"] .multi-calendar-event,
+.multi-calendar-cell-row[data-row-type="maintenance"] .multi-calendar-event {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  right: 0;
+  width: auto;
+  margin: 0 2px;
+  display: flex;
+  align-items: center;
 }
 
 #eventListContent {
@@ -591,7 +707,7 @@ class Dashboard {
     this.currentView = 'multi';
     this.currentDate = new Date();
     this.selectedPropertyId = null;
-    this.selectedCleanerFilter = null; // For multi-calendar cleaner filter
+    this.selectedCleanerFilter = null;
     this.properties = [];
     this.events = { reservations: [], cleaning: [], maintenance: [] };
     this.cleaners = [];
@@ -600,7 +716,23 @@ class Dashboard {
     this.documentMouseUpHandler = null;
     this.userPermissions = USER_PERMISSIONS || {};
     this.isAdmin = USER_IS_ADMIN;
-    
+
+    // Multi-property infinite scroll state
+    this.CELL_WIDTH = 54;
+    this.PRELOAD_DAYS = 30;
+    this.SCROLL_THRESHOLD = 160;
+    this.loadedStartDate = null;
+    this.loadedEndDate = null;
+    this.isLoadingColumns = false;
+    this.multiScrollController = null;
+
+    // Single-property infinite scroll state
+    this.PRELOAD_WEEKS = 4;
+    this.singleLoadedStartDate = null;
+    this.singleLoadedEndDate = null;
+    this.isLoadingWeeks = false;
+    this.singleScrollController = null;
+
     this.init();
   }
 
@@ -642,7 +774,7 @@ class Dashboard {
             
             // Reload events after sync completes
             if (this.currentView) {
-              this.loadView();
+              this.refreshEventsInPlace();
             }
           } else if (data.status === 'error') {
             console.error('Auto-sync error:', data.message);
@@ -690,7 +822,7 @@ class Dashboard {
     }
   }
 
-  async loadEvents(startDate, endDate, propertyId = null) {
+  async loadEvents(startDate, endDate, propertyId = null, merge = false) {
     try {
       const params = new URLSearchParams({
         start_date: startDate,
@@ -702,11 +834,27 @@ class Dashboard {
       
       const response = await fetch(`/api/dashboard/events?${params}`);
       const data = await response.json();
-      this.events = data;
+      if (merge) {
+        this.mergeEvents(data);
+      } else {
+        this.events = data;
+      }
       // Don't call renderCurrentView here - it will be called explicitly when needed
     } catch (error) {
       console.error('Failed to load events:', error);
     }
+  }
+
+  mergeEvents(newData) {
+    this.events.reservations.push(
+      ...newData.reservations.filter(r =>
+        !this.events.reservations.some(e => e.reservation_id === r.reservation_id)));
+    this.events.cleaning.push(
+      ...newData.cleaning.filter(c =>
+        !this.events.cleaning.some(e => e.property_cleaning_id === c.property_cleaning_id)));
+    this.events.maintenance.push(
+      ...newData.maintenance.filter(m =>
+        !this.events.maintenance.some(e => e.property_maintenance_id === m.property_maintenance_id)));
   }
 
   populatePropertySelector() {
@@ -852,20 +1000,111 @@ class Dashboard {
   }
 
   changeMonth(delta) {
-    // Always snap to the 1st of the target month for full month view
+    if (this.currentView === 'multi') {
+      const multiContainer = document.getElementById('multiCalendarContainer');
+      if (!multiContainer) { this._fallbackChangeMonth(delta); return; }
+      // Check if target month is within loaded range
+      const target = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + delta, 1);
+      const targetStr = this._localDateStr(target);
+      if (this.loadedStartDate && this.loadedEndDate &&
+          targetStr >= this._localDateStr(this.loadedStartDate) &&
+          targetStr <= this._localDateStr(this.loadedEndDate)) {
+        const days = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+        multiContainer.scrollLeft += delta * days * this.CELL_WIDTH;
+        this._updateMultiMonthLabel();
+      } else {
+        this._fallbackChangeMonth(delta);
+      }
+    } else if (this.currentView === 'single') {
+      const singleContainer = document.getElementById('singleCalendarContainer');
+      const grid = document.getElementById('singleCalendarGrid');
+      if (!singleContainer || !grid) { this._fallbackChangeMonth(delta); return; }
+      // Check if target month is within loaded range
+      const target = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + delta, 1);
+      const targetStr = this._localDateStr(target);
+      if (this.singleLoadedStartDate && this.singleLoadedEndDate &&
+          targetStr >= this._localDateStr(this.singleLoadedStartDate) &&
+          targetStr <= this._localDateStr(this.singleLoadedEndDate)) {
+        const targetDiv = grid.querySelector(`[data-date="${targetStr}"]`);
+        if (targetDiv) {
+          singleContainer.scrollTop = targetDiv.offsetTop;
+          this._updateSingleMonthLabel();
+        } else {
+          this._fallbackChangeMonth(delta);
+        }
+      } else {
+        this._fallbackChangeMonth(delta);
+      }
+    } else {
+      this._fallbackChangeMonth(delta);
+    }
+  }
+
+  _fallbackChangeMonth(delta) {
     this.currentDate.setMonth(this.currentDate.getMonth() + delta);
     this.currentDate.setDate(1);
     this.loadView();
   }
 
   changeByDays(days) {
+    // Only called from multi-property half-month buttons
+    const multiContainer = document.getElementById('multiCalendarContainer');
+    if (!multiContainer) { this._fallbackChangeByDays(days); return; }
+    const target = new Date(this.currentDate);
+    target.setDate(target.getDate() + days);
+    const targetStr = this._localDateStr(target);
+    if (this.loadedStartDate && this.loadedEndDate &&
+        targetStr >= this._localDateStr(this.loadedStartDate) &&
+        targetStr <= this._localDateStr(this.loadedEndDate)) {
+      multiContainer.scrollLeft += days * this.CELL_WIDTH;
+      this._updateMultiMonthLabel();
+    } else {
+      this._fallbackChangeByDays(days);
+    }
+  }
+
+  _fallbackChangeByDays(days) {
     this.currentDate.setDate(this.currentDate.getDate() + days);
     this.loadView();
   }
 
   goToToday() {
+    const now = new Date();
+    const todayStr = this._localDateStr(now);
+
+    if (this.currentView === 'multi') {
+      const multiContainer = document.getElementById('multiCalendarContainer');
+      const header = document.getElementById('multiCalendarHeader');
+      if (!multiContainer || !header) { this._fallbackGoToToday(); return; }
+      const targetTh = header.querySelector(`th[data-date="${todayStr}"]`);
+      if (targetTh) {
+        const rect = targetTh.getBoundingClientRect();
+        const cRect = multiContainer.getBoundingClientRect();
+        const propColWidth = header.querySelector('th.multi-calendar-property')?.offsetWidth ?? 200;
+        multiContainer.scrollLeft += rect.left - cRect.left - propColWidth;
+        this._updateMultiMonthLabel();
+      } else {
+        this._fallbackGoToToday();
+      }
+    } else if (this.currentView === 'single') {
+      const singleContainer = document.getElementById('singleCalendarContainer');
+      const grid = document.getElementById('singleCalendarGrid');
+      if (!singleContainer || !grid) { this._fallbackGoToToday(); return; }
+      const targetDiv = grid.querySelector(`[data-date="${todayStr}"]`);
+      if (targetDiv) {
+        singleContainer.scrollTop = targetDiv.offsetTop;
+        this._updateSingleMonthLabel();
+      } else {
+        this._fallbackGoToToday();
+      }
+    } else {
+      this._fallbackGoToToday();
+    }
+  }
+
+  _fallbackGoToToday() {
     this.currentDate = new Date();
-    this.currentDate.setDate(1); // Start from 1st of current month
+    this.currentDate.setDate(1);
     this.loadView();
   }
 
@@ -886,88 +1125,311 @@ class Dashboard {
     };
   }
 
+  // --- Multi-property calendar helpers ---
+
+  _localDateStr(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  _buildMonthBannerCells(dateThs) {
+    // Group consecutive date <th> elements by month and return banner cell HTML
+    const groups = [];
+    let lastKey = null;
+    for (const th of dateThs) {
+      const parts = th.dataset.date.split('-');
+      const key = `${parts[0]}-${parts[1]}`;
+      if (key === lastKey) {
+        groups[groups.length - 1].count++;
+      } else {
+        const d = new Date(+parts[0], +parts[1] - 1, 1);
+        groups.push({ label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), count: 1 });
+        lastKey = key;
+      }
+    }
+    return groups.map(g =>
+      `<th colspan="${g.count}" class="multi-calendar-month-banner">${g.label}</th>`
+    ).join('');
+  }
+
+  _rebuildMonthBanner() {
+    const header = document.getElementById('multiCalendarHeader');
+    if (!header) return;
+    const dayRow = header.querySelector('tr:last-child');
+    const bannerRow = header.querySelector('#multiCalendarMonthRow');
+    if (!dayRow || !bannerRow) return;
+    const dateThs = Array.from(dayRow.querySelectorAll('th[data-date]'));
+    // Keep the first <th> (property corner), replace the rest
+    const propTh = bannerRow.querySelector('th.multi-calendar-property');
+    bannerRow.innerHTML = '';
+    if (propTh) bannerRow.appendChild(propTh);
+    bannerRow.insertAdjacentHTML('beforeend', this._buildMonthBannerCells(dateThs));
+  }
+
+  _rebuildSingleMonthWatermarks() {
+    const grid = document.getElementById('singleCalendarGrid');
+    if (!grid) return;
+    grid.querySelectorAll('.month-watermark').forEach(el => el.remove());
+    const days = Array.from(grid.querySelectorAll('.calendar-day[data-date]'));
+    let lastKey = null;
+    days.forEach(day => {
+      const parts = day.dataset.date.split('-');
+      const key = `${parts[0]}-${parts[1]}`;
+      if (key !== lastKey) {
+        lastKey = key;
+        const d = new Date(+parts[0], +parts[1] - 1, 1);
+        const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        const el = document.createElement('div');
+        el.className = 'month-watermark';
+        el.textContent = label;
+        el.style.top = `${day.offsetTop + 4}px`;
+        el.style.left = `${day.offsetLeft}px`;
+        grid.appendChild(el);
+      }
+    });
+  }
+
+  buildHeaderCellHtml(date, todayStr) {
+    const dayInitials = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    const dateStr = this._localDateStr(date);
+    const dayOfWeek = date.getDay();
+    const isToday = dateStr === todayStr;
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    return `<th class="multi-calendar-cell${isToday ? ' today' : ''}${isWeekend ? ' weekend' : ''}" data-date="${dateStr}">
+      <div style="font-size: 0.7rem; color: #6c757d; font-weight: normal;">${dayInitials[dayOfWeek]}</div>
+      <div>${date.getDate()}</div>
+    </th>`;
+  }
+
+  buildBodyCell(property, date, todayStr) {
+    const dateStr = this._localDateStr(date);
+    const cell = document.createElement('td');
+    cell.className = 'multi-calendar-cell';
+    if (dateStr === todayStr) cell.classList.add('today');
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) cell.classList.add('weekend');
+    cell.dataset.propertyId = property.property_id;
+    cell.dataset.date = dateStr;
+
+    const reservationRow = document.createElement('div');
+    reservationRow.className = 'multi-calendar-cell-row';
+    reservationRow.dataset.rowType = 'reservation';
+
+    const cleaningRow = document.createElement('div');
+    cleaningRow.className = 'multi-calendar-cell-row';
+    cleaningRow.dataset.rowType = 'cleaning';
+
+    const maintenanceRow = document.createElement('div');
+    maintenanceRow.className = 'multi-calendar-cell-row';
+    maintenanceRow.dataset.rowType = 'maintenance';
+
+    cell.appendChild(reservationRow);
+    cell.appendChild(cleaningRow);
+    cell.appendChild(maintenanceRow);
+    this.addCellInteractionHandlers(cell, property.property_id, dateStr);
+    return cell;
+  }
+
+  rerenderRowSpanEvents(row, propertyId) {
+    // Collect all date cells (skip the first sticky property-name td)
+    const allCells = Array.from(row.querySelectorAll('td.multi-calendar-cell'));
+    // Clear existing span elements only (not single-day bars)
+    allCells.forEach(cell => {
+      cell.querySelectorAll('.multi-calendar-event-span').forEach(el => el.remove());
+    });
+    // Re-render spans using the full updated cell list
+    setTimeout(() => {
+      allCells.forEach((cell, index) => {
+        const dateStr = cell.dataset.date;
+        this.renderEventsInCell(cell, propertyId, dateStr, allCells, index);
+      });
+    }, 0);
+  }
+
+  async appendColumns(count) {
+    if (this.isLoadingColumns) return;
+    this.isLoadingColumns = true;
+    try {
+      const newStart = new Date(this.loadedEndDate);
+      newStart.setDate(newStart.getDate() + 1);
+      const newEnd = new Date(newStart);
+      newEnd.setDate(newEnd.getDate() + count - 1);
+
+      await this.loadEvents(this._localDateStr(newStart), this._localDateStr(newEnd), null, true);
+
+      const now = new Date();
+      const todayStr = this._localDateStr(now);
+      const headerRow = document.querySelector('#multiCalendarHeader tr:last-child');
+      const body = document.getElementById('multiCalendarBody');
+      const rows = Array.from(body.querySelectorAll('tr.multi-calendar-row'));
+
+      for (let i = 0; i < count; i++) {
+        const date = new Date(newStart);
+        date.setDate(newStart.getDate() + i);
+        headerRow.insertAdjacentHTML('beforeend', this.buildHeaderCellHtml(date, todayStr));
+      }
+      this._rebuildMonthBanner();
+
+      rows.forEach(row => {
+        const propertyId = row.querySelector('td.multi-calendar-property') ?
+          row.querySelector('td.multi-calendar-cell')?.dataset.propertyId : null;
+        if (!propertyId) return;
+        const prop = this.properties.find(p => p.property_id == propertyId);
+        if (!prop) return;
+
+        const existingCells = Array.from(row.querySelectorAll('td.multi-calendar-cell'));
+        const newCells = [];
+        for (let i = 0; i < count; i++) {
+          const date = new Date(newStart);
+          date.setDate(newStart.getDate() + i);
+          const cell = this.buildBodyCell(prop, date, todayStr);
+          row.appendChild(cell);
+          newCells.push(cell);
+        }
+        const allCells = [...existingCells, ...newCells];
+        setTimeout(() => {
+          newCells.forEach((cell, i) => {
+            this.renderEventsInCell(cell, propertyId, cell.dataset.date, allCells, existingCells.length + i);
+          });
+        }, 0);
+        this.rerenderRowSpanEvents(row, propertyId);
+      });
+
+      this.loadedEndDate = new Date(newEnd);
+    } finally {
+      this.isLoadingColumns = false;
+    }
+  }
+
+  async prependColumns(count) {
+    if (this.isLoadingColumns) return;
+    this.isLoadingColumns = true;
+    try {
+      const newEnd = new Date(this.loadedStartDate);
+      newEnd.setDate(newEnd.getDate() - 1);
+      const newStart = new Date(newEnd);
+      newStart.setDate(newStart.getDate() - count + 1);
+
+      await this.loadEvents(this._localDateStr(newStart), this._localDateStr(newEnd), null, true);
+
+      const now = new Date();
+      const todayStr = this._localDateStr(now);
+      const headerRow = document.querySelector('#multiCalendarHeader tr:last-child');
+      const body = document.getElementById('multiCalendarBody');
+      const rows = Array.from(body.querySelectorAll('tr.multi-calendar-row'));
+      const container = document.getElementById('multiCalendarContainer');
+
+      // Build new header cells in order, insert before first date th
+      const firstDateTh = headerRow.querySelector('th.multi-calendar-cell');
+      for (let i = count - 1; i >= 0; i--) {
+        const date = new Date(newStart);
+        date.setDate(newStart.getDate() + i);
+        const tmp = document.createElement('tbody');
+        tmp.innerHTML = `<tr>${this.buildHeaderCellHtml(date, todayStr)}</tr>`;
+        headerRow.insertBefore(tmp.querySelector('th'), firstDateTh);
+      }
+      this._rebuildMonthBanner();
+
+      rows.forEach(row => {
+        const propertyId = row.querySelector('td.multi-calendar-cell')?.dataset.propertyId;
+        if (!propertyId) return;
+        const prop = this.properties.find(p => p.property_id == propertyId);
+        if (!prop) return;
+
+        const firstDateTd = row.querySelector('td.multi-calendar-cell');
+        const newCells = [];
+        for (let i = count - 1; i >= 0; i--) {
+          const date = new Date(newStart);
+          date.setDate(newStart.getDate() + i);
+          const cell = this.buildBodyCell(prop, date, todayStr);
+          row.insertBefore(cell, firstDateTd);
+          newCells.unshift(cell);
+        }
+      });
+
+      // Compensate scroll position before browser paints
+      container.scrollLeft += count * this.CELL_WIDTH;
+      this.loadedStartDate = new Date(newStart);
+
+      // Re-render all spans with updated cell lists
+      rows.forEach(row => {
+        const propertyId = row.querySelector('td.multi-calendar-cell')?.dataset.propertyId;
+        if (propertyId) this.rerenderRowSpanEvents(row, propertyId);
+      });
+    } finally {
+      this.isLoadingColumns = false;
+    }
+  }
+
   async renderMultiCalendar() {
+    this.isLoadingColumns = false;
+
     // Wait for properties to load if they haven't yet
     if (this.properties.length === 0) {
       await this.loadProperties();
     }
 
-    // If currentDate is the 1st of a month, show the full month
-    // Otherwise, show 30 days starting from currentDate
-    const startDate = new Date(this.currentDate);
-    startDate.setHours(0, 0, 0, 0);
-    
-    let daysToShow;
-    let endDate;
-    
-    if (startDate.getDate() === 1) {
-      // Show full month
-      daysToShow = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
-      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
-    } else {
-      // Show 30 days from current position
-      daysToShow = 30;
-      endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + daysToShow - 1);
-    }
+    // Load 3 months: prev month, current month, next month
+    const startDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() - 1, 1);
+    const endDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 2, 0);
+    const daysToShow = Math.round((endDate - startDate) / 86400000) + 1;
 
-    // Load events for the date range
-    const startDateStr = startDate.toISOString().split('T')[0];
-    const endDateStr = endDate.toISOString().split('T')[0];
-    await this.loadEvents(startDateStr, endDateStr);
+    await this.loadEvents(this._localDateStr(startDate), this._localDateStr(endDate));
 
-    // Update month display to show the range
-    const monthElement = document.getElementById('currentMonthMulti');
-    if (monthElement) {
-      const startMonth = startDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-      const endMonth = endDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-      if (startMonth === endMonth) {
-        monthElement.textContent = startMonth;
-      } else {
-        monthElement.textContent = `${startMonth} - ${endMonth}`;
-      }
-    } else {
-      console.error('currentMonthMulti element not found');
-    }
+    this.loadedStartDate = new Date(startDate);
+    this.loadedEndDate = new Date(endDate);
 
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const now = new Date();
+    const todayStr = this._localDateStr(now);
 
-    // Build header - use a single string to avoid multiple innerHTML assignments
+    // Build header — two rows: month banner + day numbers
     const header = document.getElementById('multiCalendarHeader');
-    const dayInitials = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    let headerHtml = '<tr><th class="multi-calendar-property">Property</th>';
-    
+
+    // Day numbers row
+    let dayRowHtml = '<tr><th class="multi-calendar-property">Property</th>';
+    const dateCells = [];
     for (let i = 0; i < daysToShow; i++) {
       const date = new Date(startDate);
       date.setDate(startDate.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
-      const dayOfWeek = date.getDay();
-      const dayInitial = dayInitials[dayOfWeek];
-      const day = date.getDate();
-      const isTodayHeader = dateStr === todayStr;
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-      headerHtml += `<th class="multi-calendar-cell${isTodayHeader ? ' today' : ''}${isWeekend ? ' weekend' : ''}">
-        <div style="font-size: 0.7rem; color: #6c757d; font-weight: normal;">${dayInitial}</div>
-        <div>${day}</div>
-      </th>`;
+      const cellHtml = this.buildHeaderCellHtml(date, todayStr);
+      dayRowHtml += cellHtml;
+      dateCells.push(date);
     }
-    headerHtml += '</tr>';
-    header.innerHTML = headerHtml;
+    dayRowHtml += '</tr>';
+
+    // Month banner row (groups by month with colspan)
+    let bannerHtml = '<tr id="multiCalendarMonthRow"><th class="multi-calendar-property"></th>';
+    let lastMonthKey = null;
+    let currentGroup = null;
+    const groups = [];
+    dateCells.forEach(date => {
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      if (key !== lastMonthKey) {
+        if (currentGroup) groups.push(currentGroup);
+        currentGroup = { date, count: 1 };
+        lastMonthKey = key;
+      } else {
+        currentGroup.count++;
+      }
+    });
+    if (currentGroup) groups.push(currentGroup);
+    groups.forEach(g => {
+      const label = g.date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      bannerHtml += `<th colspan="${g.count}" class="multi-calendar-month-banner">${label}</th>`;
+    });
+    bannerHtml += '</tr>';
+
+    header.innerHTML = bannerHtml + dayRowHtml;
 
     // Build body
     const body = document.getElementById('multiCalendarBody');
     body.innerHTML = '';
-    
-    // Filter properties based on selected property and/or cleaner filter
-    let propsToShow = this.selectedPropertyId 
+
+    let propsToShow = this.selectedPropertyId
       ? this.properties.filter(p => p.property_id == this.selectedPropertyId)
       : this.properties;
 
-    // Apply cleaner filter if selected - only show properties with cleaning events for this cleaner in view
     if (this.selectedCleanerFilter) {
       const cleanerId = parseInt(this.selectedCleanerFilter);
-      // Get property IDs that have cleaning events for this cleaner in the visible date range
       const propertyIdsWithCleaner = new Set(
         this.events.cleaning
           .filter(c => c.cleaner_id == cleanerId)
@@ -977,169 +1439,276 @@ class Dashboard {
     }
 
     if (propsToShow.length === 0) {
-      const message = this.selectedCleanerFilter 
+      const message = this.selectedCleanerFilter
         ? 'No properties found with cleaning events for this cleaner in the current date range.'
         : 'No properties available. Please ensure you have access to at least one property.';
       body.innerHTML = '<tr><td colspan="' + (daysToShow + 1) + '" class="text-center text-muted py-4">' + message + '</td></tr>';
       return;
     }
 
-    console.log('Rendering calendar for', propsToShow.length, 'properties');
-
     propsToShow.forEach(property => {
       const row = document.createElement('tr');
       row.className = 'multi-calendar-row';
       row.innerHTML = `<td class="multi-calendar-property">${property.property_name}</td>`;
-      
+
       const cells = [];
       for (let i = 0; i < daysToShow; i++) {
         const date = new Date(startDate);
         date.setDate(startDate.getDate() + i);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        const cell = document.createElement('td');
-        cell.className = 'multi-calendar-cell';
-        if (dateStr === todayStr) {
-          cell.classList.add('today');
-        }
-        const dayOfWeek = date.getDay();
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-          cell.classList.add('weekend');
-        }
-        cell.dataset.propertyId = property.property_id;
-        cell.dataset.date = dateStr;
+        const cell = this.buildBodyCell(property, date, todayStr);
         cell.dataset.dayIndex = i;
-        
-        // Create 3 rows: Reservation (top), Cleaning (middle), Maintenance (bottom)
-        const reservationRow = document.createElement('div');
-        reservationRow.className = 'multi-calendar-cell-row';
-        reservationRow.dataset.rowType = 'reservation';
-        
-        const cleaningRow = document.createElement('div');
-        cleaningRow.className = 'multi-calendar-cell-row';
-        cleaningRow.dataset.rowType = 'cleaning';
-        
-        const maintenanceRow = document.createElement('div');
-        maintenanceRow.className = 'multi-calendar-cell-row';
-        maintenanceRow.dataset.rowType = 'maintenance';
-        
-        cell.appendChild(reservationRow);
-        cell.appendChild(cleaningRow);
-        cell.appendChild(maintenanceRow);
-        
-        // Add click/drag handlers
-        this.addCellInteractionHandlers(cell, property.property_id, dateStr);
-        
         cells.push(cell);
         row.appendChild(cell);
       }
-      
+
       body.appendChild(row);
-      
-      // Render events after all cells are created (needed for spanning events)
-      // Use setTimeout to ensure DOM is fully rendered before calculating positions
+
       setTimeout(() => {
         cells.forEach((cell, index) => {
-          const dateStr = cell.dataset.date;
-          this.renderEventsInCell(cell, property.property_id, dateStr, cells, index);
+          this.renderEventsInCell(cell, property.property_id, cell.dataset.date, cells, index);
         });
       }, 0);
     });
+
+      // Scroll to currentDate column after DOM settles
+    setTimeout(() => {
+      const container = document.getElementById('multiCalendarContainer');
+      const currentDateStr = this._localDateStr(this.currentDate);
+      const targetTh = header.querySelector(`th[data-date="${currentDateStr}"]`);
+      if (targetTh && container) {
+        const rect = targetTh.getBoundingClientRect();
+        const cRect = container.getBoundingClientRect();
+        const propColWidth = header.querySelector('th.multi-calendar-property')?.offsetWidth ?? 200;
+        container.scrollLeft += rect.left - cRect.left - propColWidth;
+      }
+      this._updateMultiMonthLabel();
+
+      // Attach scroll listener, replacing any previous one
+      this.multiScrollController?.abort();
+      this.multiScrollController = new AbortController();
+      container.addEventListener('scroll', () => {
+        if (this.isLoadingColumns) return;
+        if (container.scrollLeft < this.SCROLL_THRESHOLD) {
+          this.prependColumns(this.PRELOAD_DAYS);
+        } else if (container.scrollLeft > container.scrollWidth - container.clientWidth - this.SCROLL_THRESHOLD) {
+          this.appendColumns(this.PRELOAD_DAYS);
+        }
+        clearTimeout(this._multiLabelTimer);
+        this._multiLabelTimer = setTimeout(() => this._updateMultiMonthLabel(), 80);
+      }, { signal: this.multiScrollController.signal });
+    }, 0);
+  }
+
+  // --- Single-property calendar helpers ---
+
+  buildDayDiv(date, propertyId, todayStr, currentDate) {
+    const dateStr = this._localDateStr(date);
+    const dayDiv = document.createElement('div');
+    dayDiv.className = 'calendar-day';
+    // Alternate shading by month so month boundaries are visible while scrolling
+    const monthParity = (date.getFullYear() * 12 + date.getMonth()) % 2;
+    dayDiv.classList.add(monthParity === 0 ? 'month-even' : 'month-odd');
+    if (dateStr === todayStr) dayDiv.classList.add('today');
+    dayDiv.innerHTML = `<div class="calendar-day-number">${date.getDate()}</div>`;
+    dayDiv.dataset.date = dateStr;
+
+    const reservationRow = document.createElement('div');
+    reservationRow.className = 'calendar-day-row';
+    reservationRow.dataset.rowType = 'reservation';
+
+    const cleaningRow = document.createElement('div');
+    cleaningRow.className = 'calendar-day-row';
+    cleaningRow.dataset.rowType = 'cleaning';
+
+    const maintenanceRow = document.createElement('div');
+    maintenanceRow.className = 'calendar-day-row';
+    maintenanceRow.dataset.rowType = 'maintenance';
+
+    const eventZone = document.createElement('div');
+    eventZone.className = 'calendar-day-event-zone';
+    eventZone.appendChild(reservationRow);
+    eventZone.appendChild(cleaningRow);
+    eventZone.appendChild(maintenanceRow);
+    dayDiv.appendChild(eventZone);
+    this.addDayInteractionHandlers(dayDiv, propertyId, dateStr);
+    return dayDiv;
+  }
+
+  rerenderDaySpanEvents(allDays, propertyId) {
+    allDays.forEach(day => {
+      day.querySelectorAll('.calendar-event-span').forEach(el => el.remove());
+    });
+    setTimeout(() => {
+      allDays.forEach((dayDiv, index) => {
+        this.renderEventsInDay(dayDiv, propertyId, dayDiv.dataset.date, allDays, index);
+      });
+    }, 0);
+  }
+
+  async appendWeeks(count) {
+    if (this.isLoadingWeeks) return;
+    this.isLoadingWeeks = true;
+    try {
+      const newStart = new Date(this.singleLoadedEndDate);
+      newStart.setDate(newStart.getDate() + 1);
+      const newEnd = new Date(newStart);
+      newEnd.setDate(newEnd.getDate() + count * 7 - 1);
+
+      await this.loadEvents(this._localDateStr(newStart), this._localDateStr(newEnd), this.selectedPropertyId, true);
+
+      const now = new Date();
+      const todayStr = this._localDateStr(now);
+      const grid = document.getElementById('singleCalendarGrid');
+      const existingDays = Array.from(grid.querySelectorAll('.calendar-day'));
+      const newDays = [];
+
+      for (let i = 0; i < count * 7; i++) {
+        const date = new Date(newStart);
+        date.setDate(newStart.getDate() + i);
+        const dayDiv = this.buildDayDiv(date, this.selectedPropertyId, todayStr, null);
+        grid.appendChild(dayDiv);
+        newDays.push(dayDiv);
+      }
+
+      const allDays = [...existingDays, ...newDays];
+      setTimeout(() => {
+        newDays.forEach((dayDiv, i) => {
+          this.renderEventsInDay(dayDiv, this.selectedPropertyId, dayDiv.dataset.date, allDays, existingDays.length + i);
+        });
+      }, 0);
+      this.rerenderDaySpanEvents(allDays, this.selectedPropertyId);
+      this.singleLoadedEndDate = new Date(newEnd);
+      requestAnimationFrame(() => this._rebuildSingleMonthWatermarks());
+    } finally {
+      this.isLoadingWeeks = false;
+    }
+  }
+
+  async prependWeeks(count) {
+    if (this.isLoadingWeeks) return;
+    this.isLoadingWeeks = true;
+    try {
+      const newEnd = new Date(this.singleLoadedStartDate);
+      newEnd.setDate(newEnd.getDate() - 1);
+      const newStart = new Date(newEnd);
+      newStart.setDate(newStart.getDate() - count * 7 + 1);
+
+      await this.loadEvents(this._localDateStr(newStart), this._localDateStr(newEnd), this.selectedPropertyId, true);
+
+      const now = new Date();
+      const todayStr = this._localDateStr(now);
+      const grid = document.getElementById('singleCalendarGrid');
+      const container = document.getElementById('singleCalendarContainer');
+      const firstExisting = grid.querySelector('.calendar-day');
+      const existingDays = Array.from(grid.querySelectorAll('.calendar-day'));
+      const newDays = [];
+
+      for (let i = count * 7 - 1; i >= 0; i--) {
+        const date = new Date(newStart);
+        date.setDate(newStart.getDate() + i);
+        const dayDiv = this.buildDayDiv(date, this.selectedPropertyId, todayStr, null);
+        grid.insertBefore(dayDiv, firstExisting);
+        newDays.unshift(dayDiv);
+      }
+
+      const weekRowHeight = existingDays[0]?.offsetHeight ?? 120;
+      container.scrollTop += count * weekRowHeight;
+      this.singleLoadedStartDate = new Date(newStart);
+
+      const allDays = [...newDays, ...existingDays];
+      this.rerenderDaySpanEvents(allDays, this.selectedPropertyId);
+      requestAnimationFrame(() => this._rebuildSingleMonthWatermarks());
+    } finally {
+      this.isLoadingWeeks = false;
+    }
   }
 
   async renderSingleCalendar() {
+    this.isLoadingWeeks = false;
+
     if (!this.selectedPropertyId) return;
 
-    // Wait for properties to load if they haven't yet
     if (this.properties.length === 0) {
       await this.loadProperties();
     }
 
-    const range = this.getDateRange();
-    await this.loadEvents(range.start, range.end, this.selectedPropertyId);
+    // Load 3 months: prev month, current month, next month
+    // Start from Sunday on or before 1st of prev month
+    const firstOfPrevMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() - 1, 1);
+    const startDow = firstOfPrevMonth.getDay();
+    const singleStart = new Date(firstOfPrevMonth);
+    singleStart.setDate(singleStart.getDate() - startDow);
 
-    const monthName = this.currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const monthElement = document.getElementById('currentMonthSingle');
-    if (monthElement) {
-      monthElement.textContent = monthName;
-    } else {
-      console.error('currentMonthSingle element not found');
+    // End on Saturday on or after last day of next month
+    const lastOfNextMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 2, 0);
+    const endDow = lastOfNextMonth.getDay();
+    const singleEnd = new Date(lastOfNextMonth);
+    if (endDow < 6) singleEnd.setDate(singleEnd.getDate() + (6 - endDow));
+
+    await this.loadEvents(this._localDateStr(singleStart), this._localDateStr(singleEnd), this.selectedPropertyId);
+
+    this.singleLoadedStartDate = new Date(singleStart);
+    this.singleLoadedEndDate = new Date(singleEnd);
+
+    // Populate day-name header row (once, idempotent)
+    const dayNamesEl = document.getElementById('singleCalendarDayNames');
+    if (dayNamesEl && dayNamesEl.children.length === 0) {
+      ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(name => {
+        const el = document.createElement('div');
+        el.className = 'calendar-day-header';
+        el.textContent = name;
+        dayNamesEl.appendChild(el);
+      });
     }
 
-    const container = document.getElementById('singleCalendarGrid');
-    container.innerHTML = '';
+    const now = new Date();
+    const todayStr = this._localDateStr(now);
+    const grid = document.getElementById('singleCalendarGrid');
+    grid.innerHTML = '';
 
-    // Day names header
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    dayNames.forEach(day => {
-      const header = document.createElement('div');
-      header.className = 'calendar-day';
-      header.style.background = '#f8f9fa';
-      header.style.fontWeight = 'bold';
-      header.style.textAlign = 'center';
-      header.style.padding = '8px';
-      header.style.minHeight = 'auto';
-      header.textContent = day;
-      container.appendChild(header);
-    });
-
-    // Get first day of month and today's date for highlighting
-    const firstDay = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
-    const lastDay = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0);
-    const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay());
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-
-    // Build calendar days
+    const totalDays = Math.round((singleEnd - singleStart) / 86400000) + 1;
     const dayDivs = [];
-    for (let i = 0; i < 42; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
-      
-      const dayDiv = document.createElement('div');
-      dayDiv.className = 'calendar-day';
-      if (date.getMonth() !== this.currentDate.getMonth()) {
-        dayDiv.classList.add('other-month');
-      }
-      if (dateStr === todayStr) {
-        dayDiv.classList.add('today');
-      }
-      
-      dayDiv.innerHTML = `<div class="calendar-day-number">${date.getDate()}</div>`;
-      dayDiv.dataset.date = dateStr;
+    for (let i = 0; i < totalDays; i++) {
+      const date = new Date(singleStart);
+      date.setDate(singleStart.getDate() + i);
+      const dayDiv = this.buildDayDiv(date, this.selectedPropertyId, todayStr, null);
       dayDiv.dataset.dayIndex = i;
-      
-      // Create 3 rows: Reservation (top), Cleaning (middle), Maintenance (bottom)
-      const reservationRow = document.createElement('div');
-      reservationRow.className = 'calendar-day-row';
-      reservationRow.dataset.rowType = 'reservation';
-      
-      const cleaningRow = document.createElement('div');
-      cleaningRow.className = 'calendar-day-row';
-      cleaningRow.dataset.rowType = 'cleaning';
-      
-      const maintenanceRow = document.createElement('div');
-      maintenanceRow.className = 'calendar-day-row';
-      maintenanceRow.dataset.rowType = 'maintenance';
-      
-      dayDiv.appendChild(reservationRow);
-      dayDiv.appendChild(cleaningRow);
-      dayDiv.appendChild(maintenanceRow);
-      
-      // Add interaction handlers
-      this.addDayInteractionHandlers(dayDiv, this.selectedPropertyId, dateStr);
-      
+      grid.appendChild(dayDiv);
       dayDivs.push(dayDiv);
-      container.appendChild(dayDiv);
     }
-    
-    // Render events after all days are created (needed for spanning events)
+
     setTimeout(() => {
       dayDivs.forEach((dayDiv, index) => {
-        const dateStr = dayDiv.dataset.date;
-        this.renderEventsInDay(dayDiv, this.selectedPropertyId, dateStr, dayDivs, index);
+        this.renderEventsInDay(dayDiv, this.selectedPropertyId, dayDiv.dataset.date, dayDivs, index);
+      });
+
+      // Use requestAnimationFrame to wait for CSS grid layout to be computed
+      // before reading offsetTop (which returns 0 if layout hasn't run yet)
+      requestAnimationFrame(() => {
+        const container = document.getElementById('singleCalendarContainer');
+        const currentDateStr = this._localDateStr(this.currentDate);
+        const targetDiv = grid.querySelector(`[data-date="${currentDateStr}"]`);
+        if (targetDiv && container) {
+          container.scrollTop = targetDiv.offsetTop;
+        }
+        this._updateSingleMonthLabel();
+        this._rebuildSingleMonthWatermarks();
+
+        // Attach scroll listener, replacing any previous one
+        this.singleScrollController?.abort();
+        this.singleScrollController = new AbortController();
+        const weekRowHeight = dayDivs[0]?.offsetHeight ?? 120;
+        const scrollThreshold = 3 * weekRowHeight;
+        container.addEventListener('scroll', () => {
+          if (this.isLoadingWeeks) return;
+          if (container.scrollTop < scrollThreshold) {
+            this.prependWeeks(this.PRELOAD_WEEKS);
+          } else if (container.scrollTop > container.scrollHeight - container.clientHeight - scrollThreshold) {
+            this.appendWeeks(this.PRELOAD_WEEKS);
+          }
+          clearTimeout(this._singleLabelTimer);
+          this._singleLabelTimer = setTimeout(() => this._updateSingleMonthLabel(), 80);
+        }, { signal: this.singleScrollController.signal });
       });
     }, 0);
   }
@@ -1347,16 +1916,44 @@ class Dashboard {
         const isMultiDay = r.reservation_start_date !== r.reservation_end_date;
         const isStartDay = dateStr === r.reservation_start_date;
         
-        // For multi-day events, only render once - either on start day or first visible day
-        const firstVisibleDate = allCells[0].dataset.date;
-        const shouldRenderHere = isStartDay || (r.reservation_start_date < firstVisibleDate && dateStr === firstVisibleDate);
+        // For multi-day events, only render once - either on start day or first visible day.
+        // firstVisibleDate is scroll-aware: a bar whose start cell scrolled off-screen left
+        // is re-anchored to the first cell actually visible in the viewport.
+        // When cells haven't been laid out yet (initial render, scrollLeft=0, offsetLeft=0)
+        // we fall back to currentDate — the position we are about to scroll to — so stubs
+        // are placed correctly from the very first render without needing a post-scroll RAF.
+        const firstVisibleDate = (() => {
+          const mc = document.getElementById('multiCalendarContainer');
+          if (!mc || !allCells.length) return allCells[0]?.dataset.date;
+          const propColW = mc.querySelector('.multi-calendar-property')?.offsetWidth || 200;
+          const sl = mc.scrollLeft;
+          // DOM-based path: works once cells have been laid out (scrollLeft > 0, or offsetLeft > 0)
+          if (sl > 0 || allCells[0].offsetLeft > 0) {
+            for (let _i = 0; _i < allCells.length; _i++) {
+              if ((allCells[_i].offsetLeft || 0) >= sl + propColW) return allCells[_i].dataset.date;
+            }
+            return allCells[0].dataset.date;
+          }
+          // Initial render fallback: use currentDate (scroll target) so stubs land here
+          const todayStr = this._localDateStr(this.currentDate);
+          return allCells.some(c => c.dataset.date === todayStr) ? todayStr : allCells[0].dataset.date;
+        })();
+        // Only render at the actual start cell when it falls ON or AFTER the first visible cell;
+        // otherwise render a stub at firstVisibleDate to avoid the bar being invisible due to
+        // table-cell overflow clipping for cells that have scrolled off-screen left.
+        const shouldRenderHere =
+          (isStartDay && r.reservation_start_date >= firstVisibleDate) ||
+          (r.reservation_start_date < firstVisibleDate && dateStr === firstVisibleDate);
         
         if (isMultiDay && shouldRenderHere) {
           renderedEvents.add(`reservation-${r.reservation_id}`);
           
-          // Determine the actual start cell index (use 0 if reservation starts before visible range)
+          // Determine the actual start cell index.
+          // Use cell 0 only when the reservation truly starts BEFORE the loaded range.
+          // For stubs (reservation within loaded range but before the scroll position),
+          // dayIndex is the correct anchor — that IS the first visible cell.
           let startCellIndex = dayIndex;
-          if (r.reservation_start_date < firstVisibleDate) {
+          if (r.reservation_start_date < allCells[0].dataset.date) {
             startCellIndex = 0;
           }
           
@@ -1386,27 +1983,25 @@ class Dashboard {
           // Style based on permissions
           this.styleEventElement(event, 'reservation', r);
           
-          // Calculate width using actual cell positions
-          setTimeout(() => {
-            const startRect = startCell.getBoundingClientRect();
-            const endRect = endCell.getBoundingClientRect();
-            const rowRect = reservationRow.getBoundingClientRect();
-            
-            const width = endRect.right - startRect.left;
-            const leftOffset = startRect.left - rowRect.left;
-            
-            event.style.left = `${leftOffset}px`;
-            event.style.width = `${width}px`;
-          }, 0);
-          
-          // Set initial width as fallback
+          // Sub-column positioning: check-in starts in the 3rd sub-col (right 1/3) of
+          // the arrival day; check-out ends in the 1st sub-col (left 1/3) of the
+          // departure day.  This creates a natural gap between back-to-back bookings.
+          // Stubs (reservation started before the visible range) start flush-left.
           const spanCells = endCellIndex - startCellIndex + 1;
-          const cellWidth = startCell.offsetWidth || 40;
-          event.style.left = '0px';
-          event.style.width = `${cellWidth * spanCells}px`;
-          event.style.borderRadius = '2px';
-          
-          // Use sync partner bar color, with lightening for orphaned reservations
+          const cellWidth = startCell.offsetWidth || 54;
+          const subCol = Math.round(cellWidth / 3);
+          const leftOffset = isStartDay ? subCol * 2 : 0;
+          const isEndInRange = allCells[endCellIndex].dataset.date === r.reservation_end_date;
+          const endContrib = isEndInRange ? subCol : cellWidth; // no truncation if end outside range
+          let barWidth;
+          if (spanCells <= 1) {
+            // Same-cell edge case: show a small visible segment
+            barWidth = Math.max(subCol - 2, endContrib - leftOffset);
+          } else {
+            barWidth = (cellWidth - leftOffset) + (spanCells - 2) * cellWidth + endContrib - 2;
+          }
+          event.style.left = leftOffset + 'px';
+          event.style.width = barWidth + 'px';
           event.style.background = getReservationBarColor(r);
           
           event.addEventListener('click', (e) => {
@@ -1518,15 +2113,31 @@ class Dashboard {
         const isStartDay = dateStr === m.maintenance_start_date;
         
         // For multi-day events, only render once - either on start day or first visible day
-        const firstVisibleDate = allCells[0].dataset.date;
-        const shouldRenderHere = isStartDay || (m.maintenance_start_date < firstVisibleDate && dateStr === firstVisibleDate);
+        const firstVisibleDate = (() => {
+          const mc = document.getElementById('multiCalendarContainer');
+          if (!mc || !allCells.length) return allCells[0]?.dataset.date;
+          const propColW = mc.querySelector('.multi-calendar-property')?.offsetWidth || 200;
+          const sl = mc.scrollLeft;
+          if (sl > 0 || allCells[0].offsetLeft > 0) {
+            for (let _i = 0; _i < allCells.length; _i++) {
+              if ((allCells[_i].offsetLeft || 0) >= sl + propColW) return allCells[_i].dataset.date;
+            }
+            return allCells[0].dataset.date;
+          }
+          const todayStr = this._localDateStr(this.currentDate);
+          return allCells.some(c => c.dataset.date === todayStr) ? todayStr : allCells[0].dataset.date;
+        })();
+        const shouldRenderHere =
+          (isStartDay && m.maintenance_start_date >= firstVisibleDate) ||
+          (m.maintenance_start_date < firstVisibleDate && dateStr === firstVisibleDate);
         
         if (isMultiDay && shouldRenderHere) {
           renderedEvents.add(`maintenance-${m.property_maintenance_id}`);
           
-          // Determine the actual start cell index (use 0 if maintenance starts before visible range)
+          // Determine the actual start cell index.
+          // Use cell 0 only when maintenance truly starts BEFORE the loaded range.
           let startCellIndex = dayIndex;
-          if (m.maintenance_start_date < firstVisibleDate) {
+          if (m.maintenance_start_date < allCells[0].dataset.date) {
             startCellIndex = 0;
           }
           
@@ -1556,25 +2167,11 @@ class Dashboard {
           // Style based on permissions
           this.styleEventElement(event, 'maintenance', m);
           
-          // Calculate width using actual cell positions
-          setTimeout(() => {
-            const startRect = startCell.getBoundingClientRect();
-            const endRect = endCell.getBoundingClientRect();
-            const rowRect = maintenanceRow.getBoundingClientRect();
-            
-            const width = endRect.right - startRect.left;
-            const leftOffset = startRect.left - rowRect.left;
-            
-            event.style.left = `${leftOffset}px`;
-            event.style.width = `${width}px`;
-          }, 0);
-          
-          // Set initial width as fallback
+          // Calculate bar position within its start cell-row
           const spanCells = endCellIndex - startCellIndex + 1;
-          const cellWidth = startCell.offsetWidth || 40;
+          const cellWidth = startCell.offsetWidth || 54;
           event.style.left = '0px';
-          event.style.width = `${cellWidth * spanCells}px`;
-          event.style.borderRadius = '2px';
+          event.style.width = `${cellWidth * spanCells - 4}px`;
           
           event.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1637,7 +2234,12 @@ class Dashboard {
         const isMultiDay = r.reservation_start_date !== r.reservation_end_date;
         const isStartDay = dateStr === r.reservation_start_date;
         
-        if (isMultiDay && isStartDay) {
+        // Render on start day OR on first visible day when start is before loaded range
+        const firstVisibleDate = allDays[0].dataset.date;
+        const isFirstVisibleDay = r.reservation_start_date < firstVisibleDate && dayIndex === 0;
+        const shouldRenderHere = isStartDay || isFirstVisibleDay;
+
+        if (isMultiDay && shouldRenderHere) {
           // For multi-day events, render a segment for each row (week) the event spans
           // Find all days that this reservation covers
           const reservationDays = [];
@@ -1661,6 +2263,10 @@ class Dashboard {
           // Determine which row contains the start date
           const startDateRowIndex = reservationDays.find(day => day.dateStr === r.reservation_start_date);
           const startRowIdx = startDateRowIndex ? Math.floor(startDateRowIndex.index / 7) : 0;
+
+          // When start is before loaded range, show text on the first rendered row
+          const renderedRowIndices = Object.keys(rows).map(Number);
+          const firstRenderedRowIdx = Math.min(...renderedRowIndices);
           
           // Render a segment for each row
           rows.forEach((rowDays, rowIdx) => {
@@ -1675,9 +2281,10 @@ class Dashboard {
             const event = document.createElement('div');
             event.className = 'calendar-event-span event-reservation';
             
-            // Set text content - show on the segment that contains the start date
+            // Set text content - show on start row, or first visible row if start is before loaded range
             const reservationText = r.reservation_name || r.reservation_description || 'Reservation';
-            const isStartRow = rowDays.some(day => day.dateStr === r.reservation_start_date);
+            const isStartRow = rowDays.some(day => day.dateStr === r.reservation_start_date)
+                            || (isFirstVisibleDay && rowIdx === firstRenderedRowIdx);
             
             if (isStartRow) {
               event.textContent = reservationText;
@@ -1692,28 +2299,32 @@ class Dashboard {
             
             // Style based on permissions
             this.styleEventElement(event, 'reservation', r);
-            
+
+            // Sub-column: check-in starts in the 3rd sub-col (right 1/3) of arrival day;
+            // check-out ends in the 1st sub-col (left 1/3) of departure day.
+            // Stubs (start before visible range) start flush-left.
+            const isActualStartInRow = rowDays.some(d => d.dateStr === r.reservation_start_date);
+            const isActualEndInRow   = rowDays.some(d => d.dateStr === r.reservation_end_date);
+            const isEndInRange = r.reservation_end_date <= allDays[allDays.length - 1].dataset.date;
+
             // Calculate width and position for this row segment
+            const dayWidth = firstDayDiv.offsetWidth || 100;
+            const subCol = Math.round(dayWidth / 3);
+            const leftAdjust  = isActualStartInRow ? subCol * 2 : 0;
+            const rightAdjust = (isActualEndInRow && isEndInRange) ? subCol * 2 : 0;
+
+            event.style.left = leftAdjust + 'px';
+            event.style.width = (dayWidth * rowDays.length - leftAdjust - rightAdjust) + 'px';
+            event.style.borderRadius = '6px';
+
             setTimeout(() => {
               const firstRect = firstDayDiv.getBoundingClientRect();
-              const lastRect = lastDayDiv.getBoundingClientRect();
-              const rowRect = reservationRow.getBoundingClientRect();
-              
-              // Calculate width from start of first day in row to end of last day in row
-              const width = lastRect.right - firstRect.left;
-              
-              // Position relative to the reservation row
-              const leftOffset = firstRect.left - rowRect.left;
-              
-              event.style.left = `${leftOffset}px`;
-              event.style.width = `${width}px`;
+              const lastRect  = lastDayDiv.getBoundingClientRect();
+              const rowRect   = reservationRow.getBoundingClientRect();
+              const totalWidth = lastRect.right - firstRect.left;
+              event.style.left  = `${(firstRect.left - rowRect.left) + leftAdjust}px`;
+              event.style.width = `${totalWidth - leftAdjust - rightAdjust}px`;
             }, 0);
-            
-            // Set initial width as fallback
-            const dayWidth = firstDayDiv.offsetWidth || 100;
-            event.style.left = '0px';
-            event.style.width = `${dayWidth * rowDays.length}px`;
-            event.style.borderRadius = '2px';
             
             // Use sync partner bar color, with lightening for orphaned reservations
             event.style.background = getReservationBarColor(r);
@@ -1825,8 +2436,13 @@ class Dashboard {
         // Check if this is a multi-day event
         const isMultiDay = m.maintenance_start_date !== m.maintenance_end_date;
         const isStartDay = dateStr === m.maintenance_start_date;
+
+        // Render on start day OR on first visible day when start is before loaded range
+        const firstVisibleDateM = allDays[0].dataset.date;
+        const isFirstVisibleDayM = m.maintenance_start_date < firstVisibleDateM && dayIndex === 0;
+        const shouldRenderHereM = isStartDay || isFirstVisibleDayM;
         
-        if (isMultiDay && isStartDay) {
+        if (isMultiDay && shouldRenderHereM) {
           // For multi-day events, render a segment for each row (week) the event spans
           // Find all days that this maintenance covers
           const maintenanceDays = [];
@@ -1846,6 +2462,10 @@ class Dashboard {
             }
             rows[rowIndex].push(day);
           });
+
+          // When start is before loaded range, show text on the first rendered row
+          const mRenderedRowIndices = Object.keys(rows).map(Number);
+          const mFirstRenderedRowIdx = Math.min(...mRenderedRowIndices);
           
           // Render a segment for each row
           rows.forEach((rowDays, rowIdx) => {
@@ -1860,8 +2480,8 @@ class Dashboard {
             const event = document.createElement('div');
             event.className = 'calendar-event-span event-maintenance';
             
-            // Only show text on the first segment
-            if (rowIdx === 0) {
+            // Only show text on the first rendered segment
+            if (rowIdx === mFirstRenderedRowIdx) {
               event.textContent = m.maintenance_description.substring(0, 15) + '...';
             }
             
@@ -1892,7 +2512,7 @@ class Dashboard {
             const dayWidth = firstDayDiv.offsetWidth || 100;
             event.style.left = '0px';
             event.style.width = `${dayWidth * rowDays.length}px`;
-            event.style.borderRadius = '2px';
+            event.style.borderRadius = '6px';
             
             event.addEventListener('click', (e) => {
               e.stopPropagation();
@@ -2594,7 +3214,7 @@ class Dashboard {
         alert('Error: ' + data.error);
       } else {
         bootstrap.Modal.getInstance(document.getElementById('eventModal')).hide();
-        this.loadView(); // Reload view to show new event
+        this.refreshEventsInPlace(); // Reload view to show new event
       }
     } catch (error) {
       alert('Failed to save event: ' + error.message);
@@ -2608,6 +3228,111 @@ class Dashboard {
       await this.renderSingleCalendar();
     } else if (this.currentView === 'list') {
       await this.renderListView();
+    }
+  }
+
+  _updateMultiMonthLabel() {
+    const container = document.getElementById('multiCalendarContainer');
+    const header = document.getElementById('multiCalendarHeader');
+    const monthEl = document.getElementById('currentMonthMulti');
+    if (!monthEl || !header || !container) return;
+
+    // Find the first fully-visible date column
+    const cRect = container.getBoundingClientRect();
+    const propColWidth = header.querySelector('th.multi-calendar-property')?.offsetWidth ?? 200;
+    const visibleLeft = cRect.left + propColWidth;
+    const ths = header.querySelectorAll('th[data-date]');
+    let firstVisible = null;
+    for (const th of ths) {
+      if (th.getBoundingClientRect().left >= visibleLeft) {
+        firstVisible = th;
+        break;
+      }
+    }
+    if (!firstVisible) return;
+
+    // Parse date without timezone shift
+    const parts = firstVisible.dataset.date.split('-');
+    const d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+    this.currentDate = d;
+
+    // Find last visible column for range label
+    let lastVisible = null;
+    for (const th of ths) {
+      if (th.getBoundingClientRect().right <= cRect.right + 1) {
+        lastVisible = th;
+      }
+    }
+    const startLabel = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    if (lastVisible && lastVisible !== firstVisible) {
+      const p2 = lastVisible.dataset.date.split('-');
+      const d2 = new Date(+p2[0], +p2[1] - 1, +p2[2]);
+      const endLabel = d2.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      monthEl.textContent = startLabel === endLabel ? startLabel : `${startLabel} - ${endLabel}`;
+    } else {
+      monthEl.textContent = startLabel;
+    }
+  }
+
+  _updateSingleMonthLabel() {
+    const container = document.getElementById('singleCalendarContainer');
+    const grid = document.getElementById('singleCalendarGrid');
+    const monthEl = document.getElementById('currentMonthSingle');
+    if (!monthEl || !grid || !container) return;
+
+    const cTop = container.getBoundingClientRect().top;
+    const days = grid.querySelectorAll('.calendar-day[data-date]');
+    let firstVisible = null;
+    for (const d of days) {
+      if (d.getBoundingClientRect().top >= cTop) {
+        firstVisible = d;
+        break;
+      }
+    }
+    if (!firstVisible) return;
+
+    const parts = firstVisible.dataset.date.split('-');
+    const d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+    this.currentDate = d;
+    monthEl.textContent = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+
+  async refreshEventsInPlace() {
+    // Re-fetch events for the currently loaded range without resetting the DOM
+    if (this.currentView === 'multi') {
+      if (!this.loadedStartDate || !this.loadedEndDate) { this.loadView(); return; }
+      await this.loadEvents(this._localDateStr(this.loadedStartDate), this._localDateStr(this.loadedEndDate), null, false);
+      const body = document.getElementById('multiCalendarBody');
+      const rows = Array.from(body.querySelectorAll('tr.multi-calendar-row'));
+      rows.forEach(row => {
+        const allCells = Array.from(row.querySelectorAll('td.multi-calendar-cell'));
+        // Clear all event elements from all cells
+        allCells.forEach(cell => {
+          cell.querySelectorAll('.multi-calendar-event, .multi-calendar-event-span').forEach(el => el.remove());
+        });
+        const propertyId = allCells[0]?.dataset.propertyId;
+        if (!propertyId) return;
+        setTimeout(() => {
+          allCells.forEach((cell, index) => {
+            this.renderEventsInCell(cell, propertyId, cell.dataset.date, allCells, index);
+          });
+        }, 0);
+      });
+    } else if (this.currentView === 'single') {
+      if (!this.singleLoadedStartDate || !this.singleLoadedEndDate || !this.selectedPropertyId) { this.loadView(); return; }
+      await this.loadEvents(this._localDateStr(this.singleLoadedStartDate), this._localDateStr(this.singleLoadedEndDate), this.selectedPropertyId, false);
+      const grid = document.getElementById('singleCalendarGrid');
+      const allDays = Array.from(grid.querySelectorAll('.calendar-day'));
+      allDays.forEach(day => {
+        day.querySelectorAll('.event-bar, .calendar-event-span').forEach(el => el.remove());
+      });
+      setTimeout(() => {
+        allDays.forEach((dayDiv, index) => {
+          this.renderEventsInDay(dayDiv, this.selectedPropertyId, dayDiv.dataset.date, allDays, index);
+        });
+      }, 0);
+    } else {
+      this.loadView();
     }
   }
 
@@ -2643,7 +3368,7 @@ class Dashboard {
         alert('Error: ' + data.error);
       } else {
         bootstrap.Modal.getInstance(document.getElementById('eventModal')).hide();
-        this.loadView(); // Reload view to show updated events
+        this.refreshEventsInPlace(); // Reload view to show updated events
       }
     } catch (error) {
       alert('Failed to delete event: ' + error.message);
