@@ -281,14 +281,6 @@ class DashboardApiController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        // Validate that new reservations cannot be created in the past
-        $today = date('Y-m-d');
-        if ($startDate < $today) {
-            $response = new SlimResponse();
-            $response->getBody()->write(json_encode(['error' => 'Cannot create reservations in the past']));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
         try {
             $guid = bin2hex(random_bytes(16));
             
@@ -342,14 +334,6 @@ class DashboardApiController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        // Validate that new cleaning events cannot be created in the past
-        $today = date('Y-m-d');
-        if ($cleaningDate < $today) {
-            $response = new SlimResponse();
-            $response->getBody()->write(json_encode(['error' => 'Cannot create cleaning events in the past']));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
         try {
             $id = $this->cleaningDao->create(
                 $propertyId,
@@ -393,14 +377,6 @@ class DashboardApiController
             $response = new SlimResponse();
             $response->getBody()->write(json_encode(['error' => 'You do not have permission to add maintenance for this property']));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
-        // Validate that new maintenance events cannot be created in the past
-        $today = date('Y-m-d');
-        if ($startDate < $today) {
-            $response = new SlimResponse();
-            $response->getBody()->write(json_encode(['error' => 'Cannot create maintenance events in the past']));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
         try {
