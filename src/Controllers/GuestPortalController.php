@@ -150,6 +150,8 @@ class GuestPortalController
             'properties' => $portal->properties(),
             'laundry_enabled' => $portal->laundryEnabled(),
             'supplies_enabled' => $portal->suppliesEnabled(),
+            'logo_url' => $portal->logoUrl(),
+            'tagline' => $portal->tagline(),
         ];
     }
 

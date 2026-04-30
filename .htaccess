@@ -1,9 +1,13 @@
 RewriteEngine On
 
 # Block direct access to all server-side config (DB credentials, PayPal
-# secrets, per-portal JSON containing padlock combinations). Must come
+# secrets, per-portal config containing padlock combinations). Must come
 # BEFORE the index.php fallback below.
 RewriteRule ^config(/|$) - [F,L]
+
+# Serve public assets (portal logos, etc.) from public/assets/ without
+# exposing the public/ prefix in URLs.
+RewriteRule ^assets/(.*)$ public/assets/$1 [L]
 
 # Front-controller: route everything else through Slim.
 RewriteCond %{REQUEST_FILENAME} !-f

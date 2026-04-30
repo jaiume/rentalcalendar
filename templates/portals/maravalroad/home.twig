@@ -3,18 +3,8 @@
 {% block title %}{{ portal.name }} – Guest services{% endblock %}
 
 {% block content %}
+    <p class="text-muted mb-3">Choose a service below.</p>
     <div class="row g-3">
-        <div class="col-12">
-            <div class="card portal-card">
-                <div class="card-body">
-                    <h2 class="h5 mb-2">Welcome</h2>
-                    <p class="text-muted mb-0">
-                        Choose a service below.
-                    </p>
-                </div>
-            </div>
-        </div>
-
         {% if portal.laundry_enabled %}
             <div class="col-12">
                 <a href="/laundry" class="card portal-card text-decoration-none text-reset">

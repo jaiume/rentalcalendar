@@ -118,6 +118,44 @@ class PortalGroup
     }
 
     /**
+     * Branding section of the per-portal config (logo URL, tagline, etc.).
+     * Returns an empty array when no branding is configured.
+     *
+     * @return array<string, mixed>
+     */
+    public function branding(): array
+    {
+        return is_array($this->config['branding'] ?? null) ? $this->config['branding'] : [];
+    }
+
+    /**
+     * Public URL of the portal logo, if configured. Otherwise null
+     * (callers should fall back to rendering the portal name).
+     */
+    public function logoUrl(): ?string
+    {
+        $url = $this->branding()['logo_url'] ?? null;
+        if (!is_string($url) || trim($url) === '') {
+            return null;
+        }
+        return $url;
+    }
+
+    /**
+     * Optional tagline shown under the portal name in the header.
+     * Falls back to a sensible default when unset so the layout always
+     * has something to render.
+     */
+    public function tagline(): string
+    {
+        $tagline = $this->branding()['tagline'] ?? null;
+        if (is_string($tagline) && trim($tagline) !== '') {
+            return $tagline;
+        }
+        return 'Guest services';
+    }
+
+    /**
      * Resolve the Twig template name for a guest-portal page rendered
      * for this portal group. Example: $portal->template('laundry') for
      * the maravalroad group returns "portals/maravalroad/laundry.twig".

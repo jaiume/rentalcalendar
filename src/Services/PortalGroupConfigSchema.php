@@ -39,6 +39,38 @@ class PortalGroupConfigSchema
         if (isset($config['supplies'])) {
             $this->validateSupplies($slug, $config['supplies']);
         }
+
+        if (isset($config['branding'])) {
+            $this->validateBranding($slug, $config['branding']);
+        }
+    }
+
+    /**
+     * @param mixed $section
+     */
+    private function validateBranding(string $slug, $section): void
+    {
+        if (!is_array($section)) {
+            throw new PortalConfigException(sprintf('Portal "%s" branding config must be an array', $slug));
+        }
+        if (array_key_exists('logo_url', $section)) {
+            $logo = $section['logo_url'];
+            if ($logo !== null && (!is_string($logo) || trim($logo) === '')) {
+                throw new PortalConfigException(sprintf(
+                    'Portal "%s" branding.logo_url must be a non-empty string or null',
+                    $slug
+                ));
+            }
+        }
+        if (array_key_exists('tagline', $section)) {
+            $tagline = $section['tagline'];
+            if ($tagline !== null && !is_string($tagline)) {
+                throw new PortalConfigException(sprintf(
+                    'Portal "%s" branding.tagline must be a string or null',
+                    $slug
+                ));
+            }
+        }
     }
 
     /**
