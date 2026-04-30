@@ -24,11 +24,11 @@
                         <strong>Price</strong>
                         <span class="fs-5 fw-bold" id="price-display">{{ laundry.currency }} {{ laundry.price_display }}</span>
                     </div>
-                    <div id="paypal-buttons-wrapper">
-                        <div class="text-center text-muted py-3" id="paypal-loading">
+                    <div id="paypal-buttons-wrapper" class="d-flex flex-column align-items-stretch align-items-sm-end">
+                        <div class="text-muted py-3 text-center text-sm-end" id="paypal-loading">
                             Loading payment&hellip;
                         </div>
-                        <div id="paypal-buttons"></div>
+                        <div id="paypal-buttons" class="w-100" style="max-width: 260px;"></div>
                     </div>
                     <div class="alert alert-danger mt-3 d-none" id="payment-error"></div>
                 </div>
