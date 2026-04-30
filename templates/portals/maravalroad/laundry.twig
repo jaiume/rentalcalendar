@@ -95,8 +95,8 @@
         + encodeURIComponent(cfg.client_id)
         + '&currency=' + encodeURIComponent(cfg.currency || 'USD')
         + '&intent=capture'
-        + '&disable-funding=credit,card'
-        + '&enable-funding=applepay,googlepay,venmo';
+        + '&disable-funding=credit'
+        + '&enable-funding=venmo';
 
     const script = document.createElement('script');
     script.src = sdkUrl;
