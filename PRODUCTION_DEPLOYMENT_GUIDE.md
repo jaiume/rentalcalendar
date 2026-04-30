@@ -266,7 +266,7 @@ The guest portal lives on a separate hostname (one per portal group, e.g. `marav
 1. **DNS**: point each guest hostname (e.g. `maravalroad.com`) at the same server IP as the existing admin hostname.
 2. **Vhost**: add the guest hostname to the existing vhost's `server_name` list (HestiaCP: "Web Domain → Aliases"), or create a parallel vhost that proxies to the same Slim app. Either way the request must reach the same `index.php`.
 3. **TLS**: PayPal Smart Buttons require HTTPS in production. Issue a certificate covering the guest hostname (Let's Encrypt is fine; HestiaCP handles this automatically when a domain is added).
-4. **Hostname routing**: in `config/config.ini` make sure `[portal] admin_hostnames` lists every hostname that should serve the admin face. Anything not listed there AND not matching an active `portal_groups.guest_hostname` row will return 404 (intentional — the admin app is no longer exposed on unknown hostnames).
+4. **Hostname routing**: in `config/config.ini` set `[portal] admin_url` to the canonical URL of the admin face (e.g. `https://rentalcalendar.newburyhill.com`). The hostname portion of that URL is the allow-list for the admin face — any hostname not matching it AND not matching an active `portal_groups.guest_hostname` row will return 404 (intentional — the admin app is no longer exposed on unknown hostnames). The full URL is also reused as the link prefix in admin notification emails.
 
 ## Database migrations
 
@@ -302,10 +302,20 @@ client_id = "<from PayPal developer dashboard>"
 secret    = "<from PayPal developer dashboard>"
 
 [portal]
-admin_hostnames = "rentalcalendar.newburyhill.com,dev.rentalcalendar.stuckbendix.com"
+; Single canonical URL for this environment's admin face. Hostname
+; portion drives the admin allow-list; full URL is reused as the
+; link prefix in admin notification emails.
+admin_url = "https://rentalcalendar.newburyhill.com"
+
+; Recipient for guest-portal admin notification emails (laundry
+; payments, supply requests). Leave blank to disable admin emails
+; entirely (e.g. on staging).
+admin_email = "ops@example.com"
 ```
 
 `secret` is server-side only; it is never exposed to the browser. `client_id` is exposed via `GET /api/paypal/config` so the PayPal SDK can be loaded.
+
+**Migrating from a previous install:** the previous `[portal] admin_hostnames` (comma-separated list) has been replaced by the single `admin_url` above. Set `admin_url` to whichever hostname you want the admin face served on; any other hostnames that previously appeared in `admin_hostnames` will now return 404 unless they are also seeded as guest-portal hostnames.
 
 ### Per-portal config — `config/portals/<slug>.php`
 
@@ -358,7 +368,7 @@ There is no DNS for the guest hostname locally. Add the configured hostname to `
 127.0.0.1 maravalroad.local
 ```
 
-Seed `portal_groups.guest_hostname = 'maravalroad.local'` and add `dev.<your-admin-host>` to `[portal] admin_hostnames` in `config.ini`. The dev nginx vhost only serves the admin hostname's `server_name` by default — for full local guest-face testing you'll either need to add the guest hostname to the vhost's `server_name`, or temporarily point an existing dev hostname at the guest portal by editing `portal_groups.guest_hostname`.
+Seed `portal_groups.guest_hostname = 'maravalroad.local'` and set `[portal] admin_url = "https://dev.<your-admin-host>"` in `config.ini`. The dev nginx vhost only serves the admin hostname's `server_name` by default — for full local guest-face testing you'll either need to add the guest hostname to the vhost's `server_name`, or temporarily point an existing dev hostname at the guest portal by editing `portal_groups.guest_hostname`.
 
 ## Out of scope (future staff/cleaner portal session)
 

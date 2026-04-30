@@ -6,14 +6,20 @@ use App\DAO\SupplyRequestDAO;
 use App\Models\PortalGroup;
 
 /**
- * Validates and persists guest-submitted supply requests. Notifications
- * to staff are intentionally deferred to the future staff-portal session;
- * v1 only stores the request so admin can act on it from /admin/supply-requests.
+ * Validates and persists guest-submitted supply requests. After
+ * persisting, fires a single admin notification email via
+ * AdminNotificationService. Failures inside the notifier are logged
+ * but never propagate — the guest's submission has already been
+ * recorded and they get a normal thank-you redirect either way.
+ *
+ * Per-staff push notifications remain deferred to the future
+ * staff-portal session.
  */
 class SupplyRequestService
 {
     public function __construct(
-        private readonly SupplyRequestDAO $supplyRequestDao
+        private readonly SupplyRequestDAO $supplyRequestDao,
+        private readonly AdminNotificationService $adminNotifier
     ) {
     }
 
@@ -61,7 +67,25 @@ class SupplyRequestService
             'has_notes' => $extra !== '',
         ]);
 
+        $this->adminNotifier->notifySupplyRequest(
+            $portal,
+            $this->resolvePropertyName($portal, $propertyId),
+            $accepted,
+            $extra,
+            $id
+        );
+
         return $id;
+    }
+
+    private function resolvePropertyName(PortalGroup $portal, int $propertyId): string
+    {
+        foreach ($portal->properties() as $property) {
+            if ((int) ($property['property_id'] ?? 0) === $propertyId) {
+                return (string) ($property['property_name'] ?? '#' . $propertyId);
+            }
+        }
+        return '#' . $propertyId;
     }
 
     /**

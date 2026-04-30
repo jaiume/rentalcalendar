@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\DAO\PaymentDAO;
 use App\Models\PortalGroup;
+use App\Services\AdminNotificationService;
 use App\Services\LogService;
 use App\Services\PayPalService;
 use PDO;
@@ -27,7 +28,8 @@ class LaundryPaymentController
     public function __construct(
         private readonly PDO $db,
         private readonly PayPalService $paypal,
-        private readonly PaymentDAO $paymentDao
+        private readonly PaymentDAO $paymentDao,
+        private readonly AdminNotificationService $adminNotifier
     ) {
     }
 
@@ -166,6 +168,7 @@ class LaundryPaymentController
             return $this->jsonResponse(['error' => 'Payment could not be confirmed'], 402);
         }
 
+        $wasAlreadyCompleted = ((string) ($payment['status'] ?? '')) === 'completed';
         $payerEmail = PayPalService::extractPayerEmail($captureBody);
         $this->paymentDao->markCompleted(
             (int) $payment['payment_id'],
@@ -177,7 +180,18 @@ class LaundryPaymentController
             'paypal_order_id' => $orderId,
             'portal_group_id' => $portal->id(),
             'payment_id' => (int) $payment['payment_id'],
+            'replayed' => $wasAlreadyCompleted,
         ]);
+
+        if (!$wasAlreadyCompleted) {
+            $this->adminNotifier->notifyLaundryPayment(
+                $portal,
+                $payment,
+                $payerEmail,
+                (int) $captured['amount_cents'],
+                (string) $captured['currency']
+            );
+        }
 
         $laundry = $portal->laundry();
         $jsonResponse = $this->jsonResponse([

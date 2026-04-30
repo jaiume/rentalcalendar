@@ -30,6 +30,7 @@ use App\DAO\UserPropertyPermissionDAO;
 use App\Middleware\AuthenticationMiddleware;
 use App\Middleware\HostnameRoutingMiddleware;
 use App\Middleware\TwigGlobalMiddleware;
+use App\Services\AdminNotificationService;
 use App\Services\AuthenticationService;
 use App\Services\ConfigService;
 use App\Services\ICalParser;
@@ -157,8 +158,18 @@ return [
         return new PayPalService($container->get(GuzzleClient::class));
     },
 
+    AdminNotificationService::class => static function (ContainerInterface $container): AdminNotificationService {
+        return new AdminNotificationService(
+            $container->get(UtilityService::class),
+            $container->get(ConfigService::class)
+        );
+    },
+
     SupplyRequestService::class => static function (ContainerInterface $container): SupplyRequestService {
-        return new SupplyRequestService($container->get(SupplyRequestDAO::class));
+        return new SupplyRequestService(
+            $container->get(SupplyRequestDAO::class),
+            $container->get(AdminNotificationService::class)
+        );
     },
 
     ICalParser::class => create(ICalParser::class),
@@ -286,7 +297,8 @@ return [
         return new LaundryPaymentController(
             $container->get(PDO::class),
             $container->get(PayPalService::class),
-            $container->get(PaymentDAO::class)
+            $container->get(PaymentDAO::class),
+            $container->get(AdminNotificationService::class)
         );
     },
 

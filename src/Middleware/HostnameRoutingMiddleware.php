@@ -20,8 +20,9 @@ use Slim\Psr7\Response as SlimResponse;
  *  - guest hostnames match an active portal_groups.guest_hostname row
  *    and the request gets a `portal_group` PortalGroup value object
  *    plus `portal_face = 'guest'`.
- *  - admin hostnames match `[portal] admin_hostnames` in config.ini
- *    and the request gets `portal_face = 'admin'` (no portal_group).
+ *  - the hostname derived from `[portal] admin_url` in config.ini
+ *    serves the admin face; the request gets `portal_face = 'admin'`
+ *    (no portal_group).
  *  - unknown hostnames return 404.
  *
  * The middleware is intentionally permissive about which routes are
@@ -68,15 +69,24 @@ class HostnameRoutingMiddleware implements MiddlewareInterface
 
     private function isAdminHostname(string $hostname): bool
     {
-        $raw = (string) $this->config::get('portal.admin_hostnames', '');
-        if ($raw === '') {
-            return false;
+        $expected = $this->adminHostnameFromConfig();
+        return $expected !== '' && $hostname === $expected;
+    }
+
+    /**
+     * Derive the allowed admin hostname from the configured `[portal] admin_url`.
+     * Returns an empty string when the URL is missing or unparseable, in which
+     * case the admin face is unreachable — a deliberately loud failure mode for
+     * a critical config value.
+     */
+    private function adminHostnameFromConfig(): string
+    {
+        $url = trim((string) $this->config::get('portal.admin_url', ''));
+        if ($url === '') {
+            return '';
         }
-        $allowed = array_filter(array_map(
-            static fn (string $h): string => strtolower(trim($h)),
-            explode(',', $raw)
-        ));
-        return in_array($hostname, $allowed, true);
+        $host = parse_url($url, PHP_URL_HOST);
+        return is_string($host) ? strtolower($host) : '';
     }
 
     private function notFound(): Response
