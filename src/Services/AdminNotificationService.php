@@ -2,24 +2,28 @@
 
 namespace App\Services;
 
+use App\DAO\UserDAO;
 use App\Models\PortalGroup;
 
 /**
  * Centralises admin notification emails for guest-portal events
  * (laundry payments, supply requests). Wraps UtilityService::sendEmail
- * with a single recipient lookup (`portal.admin_email`) and a single
- * link prefix (`portal.admin_url`).
+ * with a recipient lookup against the `users` table (active admins:
+ * `is_admin = 1 AND is_active = 1`) and a single link prefix
+ * (`portal.admin_url`).
  *
  * Public methods are intentionally `void` and never throw — failures
  * are logged via LogService so a bad SMTP server cannot affect a
- * guest's HTTP response. When `portal.admin_email` is blank the
- * service short-circuits with a debug log and no SMTP attempt is made.
+ * guest's HTTP response. When there are no active admins (or the DB
+ * lookup errors) the service short-circuits with a debug log and no
+ * SMTP attempt is made.
  */
 final class AdminNotificationService
 {
     public function __construct(
         private readonly UtilityService $utility,
-        private readonly ConfigService $config
+        private readonly ConfigService $config,
+        private readonly UserDAO $userDao
     ) {
     }
 
@@ -33,10 +37,11 @@ final class AdminNotificationService
         int $amountCents,
         string $currency
     ): void {
-        $recipient = $this->recipient();
-        if ($recipient === null) {
-            LogService::debug('Admin notifications disabled (laundry payment)', [
+        $recipients = $this->recipients();
+        if (empty($recipients)) {
+            LogService::debug('No active admins; skipping laundry payment email', [
                 'portal_slug' => $portal->slug(),
+                'reason' => 'no_active_admins',
             ]);
             return;
         }
@@ -50,7 +55,7 @@ final class AdminNotificationService
                 $amountCents,
                 $currency
             );
-            $this->dispatch($recipient, $subject, $body, [
+            $this->dispatch($recipients, $subject, $body, [
                 'event' => 'laundry_payment',
                 'portal_slug' => $portal->slug(),
                 'paypal_order_id' => $payment['paypal_order_id'] ?? null,
@@ -70,11 +75,12 @@ final class AdminNotificationService
         string $extraNotes,
         int $supplyRequestId
     ): void {
-        $recipient = $this->recipient();
-        if ($recipient === null) {
-            LogService::debug('Admin notifications disabled (supply request)', [
+        $recipients = $this->recipients();
+        if (empty($recipients)) {
+            LogService::debug('No active admins; skipping supply request email', [
                 'portal_slug' => $portal->slug(),
                 'supply_request_id' => $supplyRequestId,
+                'reason' => 'no_active_admins',
             ]);
             return;
         }
@@ -92,7 +98,7 @@ final class AdminNotificationService
                 $extraNotes,
                 $supplyRequestId
             );
-            $this->dispatch($recipient, $subject, $body, [
+            $this->dispatch($recipients, $subject, $body, [
                 'event' => 'supply_request',
                 'portal_slug' => $portal->slug(),
                 'supply_request_id' => $supplyRequestId,
@@ -102,10 +108,28 @@ final class AdminNotificationService
         }
     }
 
-    private function recipient(): ?string
+    /**
+     * Active admin email addresses sourced from the users table.
+     * Returns [] on lookup failure (logged) or when no admins are flagged.
+     *
+     * @return string[]
+     */
+    private function recipients(): array
     {
-        $email = trim((string) $this->config::get('portal.admin_email', ''));
-        return $email === '' ? null : $email;
+        try {
+            $admins = $this->userDao->findActiveAdmins();
+        } catch (\Throwable $e) {
+            LogService::exception($e, 'Failed to load active admins for notification');
+            return [];
+        }
+        $emails = [];
+        foreach ($admins as $admin) {
+            $email = trim((string) ($admin['emailaddress'] ?? ''));
+            if ($email !== '') {
+                $emails[] = $email;
+            }
+        }
+        return array_values(array_unique($emails));
     }
 
     private function adminUrl(): ?string
@@ -115,23 +139,24 @@ final class AdminNotificationService
     }
 
     /**
+     * @param string[] $to
      * @param array<string, mixed> $logContext
      */
-    private function dispatch(string $to, string $subject, string $body, array $logContext): void
+    private function dispatch(array $to, string $subject, string $body, array $logContext): void
     {
+        $context = $logContext + [
+            'subject' => $subject,
+            'recipient_count' => count($to),
+        ];
         $sent = $this->utility->sendEmail($to, $subject, $body, true);
         if (!$sent) {
             // UtilityService already logged the underlying error; add an
             // event-level breadcrumb so it's easy to correlate against
             // the originating guest action.
-            LogService::warning('Admin notification email did not send', $logContext + [
-                'subject' => $subject,
-            ]);
+            LogService::warning('Admin notification email did not send', $context);
             return;
         }
-        LogService::info('Admin notification email sent', $logContext + [
-            'subject' => $subject,
-        ]);
+        LogService::info('Admin notification email sent', $context);
     }
 
     /**

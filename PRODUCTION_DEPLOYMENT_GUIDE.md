@@ -306,16 +306,15 @@ secret    = "<from PayPal developer dashboard>"
 ; portion drives the admin allow-list; full URL is reused as the
 ; link prefix in admin notification emails.
 admin_url = "https://rentalcalendar.newburyhill.com"
-
-; Recipient for guest-portal admin notification emails (laundry
-; payments, supply requests). Leave blank to disable admin emails
-; entirely (e.g. on staging).
-admin_email = "ops@example.com"
 ```
 
 `secret` is server-side only; it is never exposed to the browser. `client_id` is exposed via `GET /api/paypal/config` so the PayPal SDK can be loaded.
 
-**Migrating from a previous install:** the previous `[portal] admin_hostnames` (comma-separated list) has been replaced by the single `admin_url` above. Set `admin_url` to whichever hostname you want the admin face served on; any other hostnames that previously appeared in `admin_hostnames` will now return 404 unless they are also seeded as guest-portal hostnames.
+Recipients for guest-portal admin notifications (laundry payments, supply requests) are the rows in the `users` table where `is_admin = 1` AND `is_active = 1`. Manage them under `/admin/users`. Every active admin receives a copy of every notification in a single SMTP send (multiple `To:` addresses on one message). To suppress notifications on a staging or dev environment, leave the staging admin user inactive (or flip `is_admin = 0` on it).
+
+**Migrating from a previous install:**
+- The earlier `[portal] admin_hostnames` (comma-separated list) has been replaced by the single `admin_url` above. Set `admin_url` to whichever hostname you want the admin face served on; any other hostnames that previously appeared in `admin_hostnames` will now return 404 unless they are also seeded as guest-portal hostnames.
+- The earlier `[portal] admin_email` value is no longer read. Recipients are now the active admin rows in the `users` table; remove the `admin_email` line from `config.ini` and ensure each intended notification recipient has an account flagged `is_admin = 1` AND `is_active = 1`.
 
 ### Per-portal config — `config/portals/<slug>.php`
 

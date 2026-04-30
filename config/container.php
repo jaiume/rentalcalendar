@@ -161,7 +161,8 @@ return [
     AdminNotificationService::class => static function (ContainerInterface $container): AdminNotificationService {
         return new AdminNotificationService(
             $container->get(UtilityService::class),
-            $container->get(ConfigService::class)
+            $container->get(ConfigService::class),
+            $container->get(UserDAO::class)
         );
     },
 

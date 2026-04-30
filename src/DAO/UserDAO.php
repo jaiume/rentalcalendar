@@ -52,6 +52,29 @@ class UserDAO extends BaseDAO
     }
 
     /**
+     * Active administrators eligible to receive guest-portal notification emails.
+     *
+     * @return array<int, array{user_id:int, emailaddress:string, display_name:?string}>
+     */
+    public function findActiveAdmins(): array
+    {
+        try {
+            $stmt = $this->db->query(
+                'SELECT user_id, emailaddress, display_name
+                   FROM users
+                  WHERE is_admin = 1
+                    AND is_active = 1
+                    AND emailaddress IS NOT NULL
+                    AND emailaddress <> ""
+                  ORDER BY emailaddress'
+            );
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            throw new \RuntimeException('Failed to fetch active admins: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
      * Get all users ordered by email
      */
     public function findAll(): array
