@@ -48,7 +48,7 @@ class ConfigService
         $barColors = [];
         foreach (self::$config as $sectionName => $sectionData) {
             // Skip standard sections that aren't sync partners
-            $skipSections = ['app', 'database', 'mail', 'auth', 'colors', 'time_windows'];
+            $skipSections = ['app', 'database', 'mail', 'auth', 'colors', 'time_windows', 'paypal', 'portal'];
             if (in_array($sectionName, $skipSections, true)) {
                 continue;
             }

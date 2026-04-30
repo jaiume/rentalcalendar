@@ -1,32 +1,46 @@
 <?php
 
 use App\Controllers\AdminCleanerController;
+use App\Controllers\AdminPaymentController;
+use App\Controllers\AdminPortalGroupController;
 use App\Controllers\AdminPropertyController;
 use App\Controllers\AdminPropertyLinkController;
+use App\Controllers\AdminSupplyRequestController;
 use App\Controllers\AdminUserController;
 use App\Controllers\AuthController;
 use App\Controllers\DashboardApiController;
 use App\Controllers\DebugController;
+use App\Controllers\GuestPortalController;
 use App\Controllers\HomeController;
 use App\Controllers\ICalExportController;
+use App\Controllers\LaundryPaymentController;
 use App\DAO\AuthTokenDAO;
 use App\DAO\CleanerDAO;
 use App\DAO\CleaningDAO;
 use App\DAO\LoginCodeDAO;
 use App\DAO\MaintenanceDAO;
+use App\DAO\PaymentDAO;
+use App\DAO\PortalGroupDAO;
 use App\DAO\PropertyCalendarImportLinkDAO;
 use App\DAO\PropertyDAO;
 use App\DAO\ReservationDAO;
+use App\DAO\SupplyRequestDAO;
 use App\DAO\UserDAO;
 use App\DAO\UserPropertyPermissionDAO;
 use App\Middleware\AuthenticationMiddleware;
+use App\Middleware\HostnameRoutingMiddleware;
 use App\Middleware\TwigGlobalMiddleware;
 use App\Services\AuthenticationService;
 use App\Services\ConfigService;
 use App\Services\ICalParser;
+use App\Services\PayPalService;
+use App\Services\PortalGroupConfigSchema;
+use App\Services\PortalGroupResolver;
+use App\Services\SupplyRequestService;
 use App\Services\SyncPartners\AirBNBHandler;
 use App\Services\SyncService;
 use App\Services\UtilityService;
+use GuzzleHttp\Client as GuzzleClient;
 use Psr\Container\ContainerInterface;
 use Slim\Views\Twig;
 use function DI\create;
@@ -75,6 +89,18 @@ return [
         return new UserPropertyPermissionDAO($container->get(PDO::class));
     },
 
+    PortalGroupDAO::class => static function (ContainerInterface $container): PortalGroupDAO {
+        return new PortalGroupDAO($container->get(PDO::class));
+    },
+
+    SupplyRequestDAO::class => static function (ContainerInterface $container): SupplyRequestDAO {
+        return new SupplyRequestDAO($container->get(PDO::class));
+    },
+
+    PaymentDAO::class => static function (ContainerInterface $container): PaymentDAO {
+        return new PaymentDAO($container->get(PDO::class));
+    },
+
     PDO::class => static function (): PDO {
         $driver = ConfigService::get('database.driver', 'mysql');
         $host = ConfigService::get('database.host', 'localhost');
@@ -114,6 +140,27 @@ return [
         );
     },
 
+    PortalGroupConfigSchema::class => create(PortalGroupConfigSchema::class),
+
+    PortalGroupResolver::class => static function (ContainerInterface $container): PortalGroupResolver {
+        return new PortalGroupResolver(
+            $container->get(PortalGroupDAO::class),
+            $container->get(PortalGroupConfigSchema::class)
+        );
+    },
+
+    GuzzleClient::class => static function (): GuzzleClient {
+        return new GuzzleClient();
+    },
+
+    PayPalService::class => static function (ContainerInterface $container): PayPalService {
+        return new PayPalService($container->get(GuzzleClient::class));
+    },
+
+    SupplyRequestService::class => static function (ContainerInterface $container): SupplyRequestService {
+        return new SupplyRequestService($container->get(SupplyRequestDAO::class));
+    },
+
     ICalParser::class => create(ICalParser::class),
 
     AirBNBHandler::class => static function (ContainerInterface $container): AirBNBHandler {
@@ -143,6 +190,13 @@ return [
     TwigGlobalMiddleware::class => static function (ContainerInterface $container): TwigGlobalMiddleware {
         return new TwigGlobalMiddleware(
             $container->get(Twig::class)
+        );
+    },
+
+    HostnameRoutingMiddleware::class => static function (ContainerInterface $container): HostnameRoutingMiddleware {
+        return new HostnameRoutingMiddleware(
+            $container->get(PortalGroupResolver::class),
+            $container->get(ConfigService::class)
         );
     },
 
@@ -216,6 +270,46 @@ return [
         return new DebugController(
             $container->get(Twig::class),
             $container->get(ConfigService::class)
+        );
+    },
+
+    GuestPortalController::class => static function (ContainerInterface $container): GuestPortalController {
+        return new GuestPortalController(
+            $container->get(Twig::class),
+            $container->get(SupplyRequestService::class),
+            $container->get(PayPalService::class)
+        );
+    },
+
+    LaundryPaymentController::class => static function (ContainerInterface $container): LaundryPaymentController {
+        return new LaundryPaymentController(
+            $container->get(PDO::class),
+            $container->get(PayPalService::class),
+            $container->get(PaymentDAO::class)
+        );
+    },
+
+    AdminPortalGroupController::class => static function (ContainerInterface $container): AdminPortalGroupController {
+        return new AdminPortalGroupController(
+            $container->get(Twig::class),
+            $container->get(PortalGroupDAO::class),
+            $container->get(PropertyDAO::class)
+        );
+    },
+
+    AdminSupplyRequestController::class => static function (ContainerInterface $container): AdminSupplyRequestController {
+        return new AdminSupplyRequestController(
+            $container->get(Twig::class),
+            $container->get(SupplyRequestDAO::class),
+            $container->get(PortalGroupDAO::class)
+        );
+    },
+
+    AdminPaymentController::class => static function (ContainerInterface $container): AdminPaymentController {
+        return new AdminPaymentController(
+            $container->get(Twig::class),
+            $container->get(PaymentDAO::class),
+            $container->get(PortalGroupDAO::class)
         );
     },
 ];

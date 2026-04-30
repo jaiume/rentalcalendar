@@ -1,0 +1,77 @@
+{% extends "portals/maravalroad/guest_layout.twig" %}
+
+{% block title %}Request supplies – {{ portal.name }}{% endblock %}
+
+{% block content %}
+    <div class="row g-3">
+        <div class="col-12">
+            <a href="/" class="btn btn-link p-0 mb-2">&laquo; Back</a>
+            <div class="card portal-card">
+                <div class="card-body">
+                    <h2 class="h5 mb-1">Request supplies</h2>
+                    <p class="text-muted small mb-0">
+                        Choose your apartment, tick what you need, and add notes for anything else.
+                        Your host gets a copy and a cleaner will deliver on their next visit.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        {% if error %}
+            <div class="col-12">
+                <div class="alert alert-danger mb-0">{{ error }}</div>
+            </div>
+        {% endif %}
+
+        <div class="col-12">
+            <form method="post" action="/supplies" class="card portal-card">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="property_id" class="form-label">Apartment</label>
+                        <select id="property_id" name="property_id" class="form-select" required>
+                            <option value="">— Select your apartment —</option>
+                            {% for property in portal.properties %}
+                                <option value="{{ property.property_id }}">{{ property.property_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {% if item_suggestions is not empty %}
+                        <fieldset class="mb-3">
+                            <legend class="form-label fs-6">What do you need?</legend>
+                            <div class="row g-2">
+                                {% for item in item_suggestions %}
+                                    <div class="col-12 col-sm-6">
+                                        <div class="form-check">
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                name="items[]"
+                                                value="{{ item }}"
+                                                id="item-{{ loop.index }}">
+                                            <label class="form-check-label" for="item-{{ loop.index }}">
+                                                {{ item }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </fieldset>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Anything else?</label>
+                        <textarea
+                            id="notes"
+                            name="notes"
+                            class="form-control"
+                            rows="3"
+                            placeholder="Optional — quantity, brand preferences, urgency, etc."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">Send request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}

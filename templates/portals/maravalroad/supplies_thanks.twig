@@ -1,0 +1,19 @@
+{% extends "portals/maravalroad/guest_layout.twig" %}
+
+{% block title %}Request received – {{ portal.name }}{% endblock %}
+
+{% block content %}
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="card portal-card border-success">
+                <div class="card-body">
+                    <h2 class="h5 text-success mb-2">Thanks — your request was received.</h2>
+                    <p class="mb-3">
+                        Your host has been notified. A cleaner will bring the items on their next visit.
+                    </p>
+                    <a href="/" class="btn btn-primary">Back to guest services</a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -1,7 +1,11 @@
 RewriteEngine On
+
+# Block direct access to all server-side config (DB credentials, PayPal
+# secrets, per-portal JSON containing padlock combinations). Must come
+# BEFORE the index.php fallback below.
+RewriteRule ^config(/|$) - [F,L]
+
+# Front-controller: route everything else through Slim.
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [QSA,L]
-
-
-

@@ -1,5 +1,7 @@
 /vendor/
 /config/config.ini
+/config/portals/*.php
+!/config/portals/*.example.php
 /.env
 /.idea/
 /.vscode/

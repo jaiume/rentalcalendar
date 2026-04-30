@@ -1,0 +1,158 @@
+{% extends "portals/maravalroad/guest_layout.twig" %}
+
+{% block title %}Laundry access – {{ portal.name }}{% endblock %}
+
+{% block content %}
+    <div class="row g-3">
+        <div class="col-12">
+            <a href="/" class="btn btn-link p-0 mb-2">&laquo; Back</a>
+            <div class="card portal-card">
+                <div class="card-body">
+                    <h2 class="h5 mb-2">Laundry access</h2>
+                    <p class="text-muted small mb-0">
+                        Pay once to unlock the padlock combination and the instructions for using the laundry room.
+                        After payment you can revisit this page anytime to see the combination again.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12" id="payment-card">
+            <div class="card portal-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <strong>Price</strong>
+                        <span class="fs-5 fw-bold" id="price-display">{{ laundry.currency }} {{ laundry.price_display }}</span>
+                    </div>
+                    <div id="paypal-buttons-wrapper">
+                        <div class="text-center text-muted py-3" id="paypal-loading">
+                            Loading payment&hellip;
+                        </div>
+                        <div id="paypal-buttons"></div>
+                    </div>
+                    <div class="alert alert-danger mt-3 d-none" id="payment-error"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 d-none" id="combo-card">
+            <div class="card portal-card border-success">
+                <div class="card-body">
+                    <h3 class="h5 text-success mb-3">Payment received</h3>
+                    <div class="mb-3">
+                        <div class="text-uppercase text-muted small">Padlock combination</div>
+                        <div class="fs-2 fw-bold font-monospace" id="combo-value">&mdash;</div>
+                    </div>
+                    <div class="border-top pt-3" id="combo-instructions"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(async function () {
+    const errorEl = document.getElementById('payment-error');
+    const loadingEl = document.getElementById('paypal-loading');
+    const buttonsEl = document.getElementById('paypal-buttons');
+    const paymentCard = document.getElementById('payment-card');
+    const comboCard = document.getElementById('combo-card');
+    const comboValueEl = document.getElementById('combo-value');
+    const comboInstructionsEl = document.getElementById('combo-instructions');
+
+    function showError(message) {
+        errorEl.textContent = message;
+        errorEl.classList.remove('d-none');
+    }
+
+    function hideError() {
+        errorEl.classList.add('d-none');
+    }
+
+    function revealCombo(data) {
+        comboValueEl.textContent = data.combination || '';
+        comboInstructionsEl.innerHTML = data.instructions_html || '';
+        comboCard.classList.remove('d-none');
+        paymentCard.classList.add('d-none');
+        comboCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    let cfg;
+    try {
+        const res = await fetch('/api/paypal/config', { credentials: 'same-origin' });
+        if (!res.ok) {
+            throw new Error('paypal config http ' + res.status);
+        }
+        cfg = await res.json();
+    } catch (err) {
+        loadingEl.classList.add('d-none');
+        showError('Could not load payment service. Please try again later.');
+        return;
+    }
+
+    const sdkUrl = 'https://www.paypal.com/sdk/js?client-id='
+        + encodeURIComponent(cfg.client_id)
+        + '&currency=' + encodeURIComponent(cfg.currency || 'USD')
+        + '&intent=capture'
+        + '&disable-funding=credit,card';
+
+    const script = document.createElement('script');
+    script.src = sdkUrl;
+    script.onload = function () {
+        loadingEl.classList.add('d-none');
+        if (!window.paypal) {
+            showError('Payment service unavailable. Please try again later.');
+            return;
+        }
+
+        paypal.Buttons({
+            style: { shape: 'rect', layout: 'vertical', label: 'pay' },
+            createOrder: async function () {
+                hideError();
+                const res = await fetch('/api/laundry/orders', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                if (!res.ok) {
+                    const detail = await res.json().catch(() => ({}));
+                    throw new Error(detail.error || 'Could not start payment');
+                }
+                const data = await res.json();
+                return data.id;
+            },
+            onApprove: async function (data) {
+                const res = await fetch('/api/laundry/orders/' + encodeURIComponent(data.orderID) + '/capture', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (!res.ok) {
+                    const detail = await res.json().catch(() => ({}));
+                    throw new Error(detail.error || 'Payment could not be confirmed');
+                }
+                const body = await res.json();
+                revealCombo(body);
+            },
+            onError: function (err) {
+                console.error('PayPal Buttons error', err);
+                showError('Payment could not be completed. Please try again.');
+            },
+            onCancel: function () {
+                hideError();
+            }
+        }).render('#paypal-buttons').catch(function (err) {
+            console.error(err);
+            showError('Payment service unavailable. Please try again later.');
+        });
+    };
+    script.onerror = function () {
+        loadingEl.classList.add('d-none');
+        showError('Could not load PayPal. Please try again later.');
+    };
+    document.head.appendChild(script);
+})();
+</script>
+{% endblock %}

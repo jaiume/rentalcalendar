@@ -1,0 +1,90 @@
+{% extends "layout.twig" %}
+
+{% block title %}{% if portal_group %}Edit{% else %}New{% endif %} Portal Group | Admin{% endblock %}
+
+{% block content %}
+  <section class="py-5">
+    <div class="container">
+      <div class="row mb-3">
+        <div class="col-12">
+          <h1 class="h2 mb-0">{% if portal_group %}Edit{% else %}New{% endif %} Portal Group</h1>
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+      {% endif %}
+
+      {% if portal_group and config_status is defined and not config_status.exists %}
+        <div class="alert alert-warning">
+          {{ config_status.error }}. Create the file from <code>config/portals/{{ portal_group.slug }}.example.php</code>
+          (or any sibling <code>*.example.php</code>) and fill in the secrets.
+        </div>
+      {% endif %}
+
+      <form method="post" action="{% if portal_group %}/admin/portal-groups/{{ portal_group.portal_group_id }}{% else %}/admin/portal-groups{% endif %}" class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="name" class="form-label">Name</label>
+              <input type="text" class="form-control" id="name" name="name" required value="{{ portal_group.name|default('') }}">
+              <small class="form-text text-muted">Shown in the guest portal header.</small>
+            </div>
+            <div class="col-md-6">
+              <label for="slug" class="form-label">Slug</label>
+              <input type="text" class="form-control" id="slug" name="slug" required pattern="[a-z0-9_-]+"
+                     value="{{ portal_group.slug|default('') }}" {% if portal_group %}readonly{% endif %}>
+              <small class="form-text text-muted">
+                Path-safe identifier (a–z, 0–9, _, -). Must match
+                <code>config/portals/&lt;slug&gt;.php</code> and <code>templates/portals/&lt;slug&gt;/</code>.
+                {% if portal_group %}Locked once created — changing the slug would orphan the config and templates.{% endif %}
+              </small>
+            </div>
+
+            <div class="col-md-6">
+              <label for="guest_hostname" class="form-label">Guest hostname</label>
+              <input type="text" class="form-control" id="guest_hostname" name="guest_hostname"
+                     value="{{ portal_group.guest_hostname|default('') }}" placeholder="e.g. maravalroad.com">
+              <small class="form-text text-muted">Public hostname guests visit. Leave blank to disable.</small>
+            </div>
+
+            <div class="col-md-6 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_active" id="is_active" value="1"
+                       {% if portal_group is null or portal_group.is_active %}checked{% endif %}>
+                <label class="form-check-label" for="is_active">Active</label>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Properties</label>
+              <p class="text-muted small mb-2">Tick every property that should appear in this portal.</p>
+              <div class="row g-2">
+                {% for property in properties %}
+                  <div class="col-md-6 col-lg-4">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="property_ids[]"
+                             value="{{ property.property_id }}"
+                             id="prop-{{ property.property_id }}"
+                             {% if property.property_id in assigned_property_ids %}checked{% endif %}>
+                      <label class="form-check-label" for="prop-{{ property.property_id }}">
+                        {{ property.property_name }}
+                      </label>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex justify-content-end gap-2">
+            <a href="/admin/portal-groups" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+              {% if portal_group %}Save changes{% else %}Create portal group{% endif %}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+{% endblock %}

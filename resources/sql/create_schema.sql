@@ -124,3 +124,55 @@ CREATE TABLE IF NOT EXISTS login_codes (
     INDEX idx_token_expiry (token_expiry),
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS portal_groups (
+    portal_group_id        BIGINT AUTO_INCREMENT PRIMARY KEY,
+    slug                   VARCHAR(64) NOT NULL UNIQUE COMMENT 'Path-safe identifier; matches config/portals/<slug>.json and templates/portals/<slug>/',
+    name                   VARCHAR(200) NOT NULL,
+    guest_hostname         VARCHAR(255) NULL UNIQUE COMMENT 'Public hostname for the guest portal, e.g. maravalroad.com',
+    is_active              TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS portal_group_properties (
+    portal_group_id        BIGINT NOT NULL,
+    property_id            BIGINT NOT NULL,
+    PRIMARY KEY (portal_group_id, property_id),
+    FOREIGN KEY (portal_group_id) REFERENCES portal_groups(portal_group_id) ON DELETE CASCADE,
+    FOREIGN KEY (property_id) REFERENCES properties(property_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS supply_requests (
+    supply_request_id      BIGINT AUTO_INCREMENT PRIMARY KEY,
+    portal_group_id        BIGINT NOT NULL,
+    property_id            BIGINT NOT NULL,
+    request_text           TEXT NOT NULL,
+    status                 VARCHAR(16) NOT NULL DEFAULT 'pending'
+                           CHECK (status IN ('pending','acknowledged','fulfilled','cancelled')),
+    created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_supply_requests_group_status (portal_group_id, status, created_at),
+    INDEX idx_supply_requests_property (property_id, created_at),
+    FOREIGN KEY (portal_group_id) REFERENCES portal_groups(portal_group_id) ON DELETE CASCADE,
+    FOREIGN KEY (property_id) REFERENCES properties(property_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payments (
+    payment_id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+    portal_group_id        BIGINT NOT NULL,
+    item_type              VARCHAR(64) NOT NULL COMMENT 'Machine code identifying what was paid for, e.g. laundry_access',
+    item_reference         VARCHAR(128) NULL COMMENT 'Optional domain reference, e.g. property_id for laundry',
+    description            VARCHAR(255) NULL COMMENT 'Human-readable label captured at payment time',
+    paypal_order_id        VARCHAR(64) NULL UNIQUE COMMENT 'NULL allowed for future non-PayPal providers',
+    provider               VARCHAR(32) NOT NULL DEFAULT 'paypal',
+    amount_cents           INT NOT NULL,
+    currency               CHAR(3) NOT NULL,
+    status                 VARCHAR(16) NOT NULL
+                           CHECK (status IN ('created','completed','failed','refunded')),
+    payer_email            VARCHAR(255) NULL,
+    ip_address             VARCHAR(45) NULL,
+    created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at           DATETIME NULL,
+    INDEX idx_payments_group_item_status (portal_group_id, item_type, status),
+    INDEX idx_payments_created (created_at),
+    FOREIGN KEY (portal_group_id) REFERENCES portal_groups(portal_group_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

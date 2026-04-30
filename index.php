@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Middleware\TwigGlobalMiddleware;
+use App\Middleware\HostnameRoutingMiddleware;
 use App\Services\ConfigService;
 use DI\ContainerBuilder;
 use Dotenv\Dotenv;
@@ -28,6 +28,7 @@ $app = AppFactory::create();
 $app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
 $app->add(TwigMiddleware::createFromContainer($app, Twig::class));
+$app->add($container->get(HostnameRoutingMiddleware::class));
 
 /** @var ConfigService $config */
 $config = $container->get(ConfigService::class);
