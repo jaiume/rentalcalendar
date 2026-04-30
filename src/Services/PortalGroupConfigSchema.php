@@ -108,6 +108,16 @@ class PortalGroupConfigSchema
         if (!is_string($section['padlock_instructions_html'])) {
             throw new PortalConfigException(sprintf('Portal "%s" laundry.padlock_instructions_html must be a string', $slug));
         }
+
+        if (array_key_exists('access_days', $section)) {
+            $days = $section['access_days'];
+            if (!is_int($days) || $days < 1) {
+                throw new PortalConfigException(sprintf(
+                    'Portal "%s" laundry.access_days must be a positive integer when set',
+                    $slug
+                ));
+            }
+        }
     }
 
     /**

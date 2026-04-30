@@ -180,10 +180,47 @@ class LaundryPaymentController
         ]);
 
         $laundry = $portal->laundry();
-        return $this->jsonResponse([
+        $jsonResponse = $this->jsonResponse([
             'combination' => (string) ($laundry['padlock_combination'] ?? ''),
             'instructions_html' => (string) ($laundry['padlock_instructions_html'] ?? ''),
         ]);
+
+        return $jsonResponse->withHeader(
+            'Set-Cookie',
+            $this->buildPaidLaundryCookie($request, $orderId, $portal->laundryAccessDays())
+        );
+    }
+
+    /**
+     * Build the `paid_laundry` cookie string sent on successful capture.
+     * The value is the PayPal order id (already unguessable), which the
+     * guest portal looks up server-side on every visit. Cookie Max-Age is
+     * a hint to the browser; the DB age check is authoritative.
+     */
+    private function buildPaidLaundryCookie(Request $request, string $orderId, int $accessDays): string
+    {
+        $maxAge = $accessDays * 86400;
+        $secure = $this->isSecureRequest($request) ? '; Secure' : '';
+        return sprintf(
+            'paid_laundry=%s; Max-Age=%d; Path=/; HttpOnly; SameSite=Lax%s',
+            urlencode($orderId),
+            $maxAge,
+            $secure
+        );
+    }
+
+    /**
+     * Detect HTTPS on this request, honouring the standard reverse-proxy
+     * header so the cookie picks up Secure when a TLS-terminating proxy
+     * (nginx/HestiaCP in production) sets X-Forwarded-Proto: https.
+     */
+    private function isSecureRequest(Request $request): bool
+    {
+        if (strtolower($request->getUri()->getScheme()) === 'https') {
+            return true;
+        }
+        $forwardedProto = strtolower(trim($request->getHeaderLine('X-Forwarded-Proto')));
+        return $forwardedProto === 'https';
     }
 
     private function portal(Request $request): PortalGroup

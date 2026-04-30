@@ -20,6 +20,10 @@ return [
         'enabled' => true,
         'price_cents' => 500,
         'currency' => 'USD',
+        // Days a guest can revisit /laundry after payment to see the
+        // combination again before being asked to pay once more. Optional;
+        // default is 7. Clamped to [1, 365] in code.
+        'access_days' => 7,
         'padlock_combination' => 'REPLACE-ME',
         'padlock_instructions_html' => '<p>Replace this with HTML instructions for unlocking and using the laundry room. The padlock combination above and these instructions are revealed only after a successful PayPal payment.</p>',
     ],

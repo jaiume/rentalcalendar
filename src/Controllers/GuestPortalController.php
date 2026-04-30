@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\DAO\PaymentDAO;
 use App\Models\PortalGroup;
 use App\Services\LogService;
 use App\Services\PayPalService;
@@ -26,7 +27,8 @@ class GuestPortalController
     public function __construct(
         private readonly Twig $view,
         private readonly SupplyRequestService $supplyRequests,
-        private readonly PayPalService $paypal
+        private readonly PayPalService $paypal,
+        private readonly PaymentDAO $paymentDao
     ) {
     }
 
@@ -47,6 +49,8 @@ class GuestPortalController
         }
 
         $laundry = $portal->laundry();
+        $accessDays = $portal->laundryAccessDays();
+        $revealedCombination = $this->resolveRevealedCombination($request, $portal);
 
         return $this->view->render($response, $portal->template('laundry'), [
             'portal' => $this->portalContext($portal),
@@ -54,8 +58,56 @@ class GuestPortalController
                 'price_cents' => (int) ($laundry['price_cents'] ?? 0),
                 'currency' => (string) ($laundry['currency'] ?? 'USD'),
                 'price_display' => PayPalService::centsToDecimalString((int) ($laundry['price_cents'] ?? 0)),
+                'access_days' => $accessDays,
             ],
+            'revealed_combination' => $revealedCombination,
         ]);
+    }
+
+    /**
+     * If the guest is carrying a `paid_laundry` cookie that points to a
+     * still-valid completed payment for this portal, return the combo +
+     * instructions so the template can render them server-side without
+     * loading the PayPal SDK or asking for payment again.
+     *
+     * Returns null in every other case (no cookie, unknown order id,
+     * different portal, refunded/failed/expired) so the template falls
+     * through to the normal payment flow. The combination text is read
+     * from the **current** portal config so rotating the padlock combo
+     * automatically pushes the new value to returning guests too — we
+     * never store the secret in the DB.
+     *
+     * @return array{combination: string, instructions_html: string}|null
+     */
+    private function resolveRevealedCombination(Request $request, PortalGroup $portal): ?array
+    {
+        $cookies = $request->getCookieParams();
+        $paidOrderId = isset($cookies['paid_laundry']) ? trim((string) $cookies['paid_laundry']) : '';
+        if ($paidOrderId === '') {
+            return null;
+        }
+
+        try {
+            $payment = $this->paymentDao->findActiveCompleted(
+                $paidOrderId,
+                $portal->id(),
+                'laundry_access',
+                $portal->laundryAccessDays()
+            );
+        } catch (\Throwable $e) {
+            LogService::exception($e, 'paid_laundry cookie lookup failed');
+            return null;
+        }
+
+        if ($payment === null) {
+            return null;
+        }
+
+        $laundry = $portal->laundry();
+        return [
+            'combination' => (string) ($laundry['padlock_combination'] ?? ''),
+            'instructions_html' => (string) ($laundry['padlock_instructions_html'] ?? ''),
+        ];
     }
 
     public function supplies(Request $request, Response $response): Response

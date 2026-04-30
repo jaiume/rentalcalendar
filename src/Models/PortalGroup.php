@@ -87,6 +87,21 @@ class PortalGroup
     }
 
     /**
+     * Number of days a paying guest may revisit the laundry page and see
+     * the padlock combination again before being asked to pay once more.
+     * Defaults to 7. Clamped to [1, 365] so a typo in the per-portal
+     * config can't render the cookie effectively permanent or zero-length.
+     */
+    public function laundryAccessDays(): int
+    {
+        $raw = $this->laundry()['access_days'] ?? 7;
+        if (!is_int($raw)) {
+            $raw = 7;
+        }
+        return max(1, min(365, $raw));
+    }
+
+    /**
      * Supplies section of the per-portal config, or an empty array if missing.
      *
      * @return array<string, mixed>

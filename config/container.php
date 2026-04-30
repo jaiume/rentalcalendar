@@ -277,7 +277,8 @@ return [
         return new GuestPortalController(
             $container->get(Twig::class),
             $container->get(SupplyRequestService::class),
-            $container->get(PayPalService::class)
+            $container->get(PayPalService::class),
+            $container->get(PaymentDAO::class)
         );
     },
 

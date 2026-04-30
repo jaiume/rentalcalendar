@@ -73,6 +73,52 @@ class PaymentDAO extends BaseDAO
         }
     }
 
+    /**
+     * Look up a completed payment for a returning guest. Returns null
+     * (rather than partial matches) for unknown / refunded / failed /
+     * wrong-portal / wrong-item-type / older-than-window rows so the
+     * caller doesn't need to interpret the result.
+     *
+     * Used by the `paid_laundry` cookie path: the cookie value is the
+     * PayPal order id, which is unique and unguessable. The age filter
+     * is enforced by MySQL against the row's own `completed_at` to avoid
+     * any host-clock-skew weirdness, and is the authoritative expiry —
+     * the cookie's Max-Age is just a hint to the browser.
+     */
+    public function findActiveCompleted(
+        string $paypalOrderId,
+        int $portalGroupId,
+        string $itemType,
+        int $maxAgeDays
+    ): ?array {
+        if ($paypalOrderId === '' || $maxAgeDays < 1) {
+            return null;
+        }
+
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT * FROM payments
+                  WHERE paypal_order_id = :order_id
+                    AND portal_group_id = :portal_group_id
+                    AND item_type = :item_type
+                    AND status = :status
+                    AND completed_at IS NOT NULL
+                    AND completed_at >= (NOW() - INTERVAL :days DAY)
+                  LIMIT 1'
+            );
+            $stmt->bindValue(':order_id', $paypalOrderId, PDO::PARAM_STR);
+            $stmt->bindValue(':portal_group_id', $portalGroupId, PDO::PARAM_INT);
+            $stmt->bindValue(':item_type', $itemType, PDO::PARAM_STR);
+            $stmt->bindValue(':status', 'completed', PDO::PARAM_STR);
+            $stmt->bindValue(':days', $maxAgeDays, PDO::PARAM_INT);
+            $stmt->execute();
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $row ?: null;
+        } catch (PDOException $e) {
+            throw new \RuntimeException('Failed to find active completed payment: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
     public function markCompleted(int $paymentId, ?string $payerEmail, ?string $ipAddress): bool
     {
         try {
