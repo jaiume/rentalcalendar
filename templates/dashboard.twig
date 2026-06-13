@@ -124,8 +124,10 @@
               <p class="text-muted text-center py-4">Loading events...</p>
             </div>
           </div>
-          <div class="mt-4 pt-3 border-top">
-            <button class="btn btn-primary" id="addEventBtn">Add Event</button>
+          <div class="mt-4 pt-3 border-top d-flex flex-wrap gap-2" id="listViewAddButtons">
+            <button class="btn text-white" id="addReservationBtn" style="background-color: {{ reservation_color }};">Add Reservation</button>
+            <button class="btn text-white" id="addMaintenanceBtn" style="background-color: {{ maintenance_color }};">Add Maintenance</button>
+            <button class="btn text-white" id="addCleaningBtn" style="background-color: {{ cleaning_color }};">Add Cleaning</button>
           </div>
         </div>
       </div>
@@ -940,14 +942,15 @@ class Dashboard {
       }
     });
     
-    // Add event button for list view
-    document.getElementById('addEventBtn')?.addEventListener('click', () => {
-      if (!this.selectedPropertyId) {
-        alert('Please select a property first');
-        return;
-      }
-      const today = new Date().toISOString().split('T')[0];
-      this.openEventModal('reservation', this.selectedPropertyId, today, today);
+    // Add event buttons for list view
+    document.getElementById('addReservationBtn')?.addEventListener('click', () => {
+      this.openListViewAddEvent('reservation');
+    });
+    document.getElementById('addMaintenanceBtn')?.addEventListener('click', () => {
+      this.openListViewAddEvent('maintenance');
+    });
+    document.getElementById('addCleaningBtn')?.addEventListener('click', () => {
+      this.openListViewAddEvent('cleaning');
     });
   }
 
@@ -995,6 +998,7 @@ class Dashboard {
       await this.renderSingleCalendar();
     } else if (this.currentView === 'list') {
       document.getElementById('viewList').style.display = 'block';
+      this.updateListViewAddButtons();
       await this.renderListView();
     }
   }
@@ -2872,6 +2876,59 @@ class Dashboard {
   hasCleanerTails(propertyId) {
     const property = this.properties.find(p => p.property_id == propertyId);
     return property && (property.cleaner_tails === true || property.cleaner_tails === 1 || property.cleaner_tails === '1');
+  }
+
+  updateListViewAddButtons() {
+    const container = document.getElementById('listViewAddButtons');
+    const reservationBtn = document.getElementById('addReservationBtn');
+    const maintenanceBtn = document.getElementById('addMaintenanceBtn');
+    const cleaningBtn = document.getElementById('addCleaningBtn');
+
+    if (!container || !reservationBtn || !maintenanceBtn || !cleaningBtn) {
+      return;
+    }
+
+    const propertyId = this.selectedPropertyId;
+    if (!propertyId) {
+      container.style.display = 'none';
+      return;
+    }
+
+    const canReservation = this.hasPermission(propertyId, 'can_create_reservation');
+    const canMaintenance = this.hasPermission(propertyId, 'can_add_maintenance');
+    const canCleaning = this.hasPermission(propertyId, 'can_add_cleaning');
+    const hasAnyPermission = canReservation || canMaintenance || canCleaning;
+
+    if (!hasAnyPermission) {
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = 'flex';
+    reservationBtn.style.display = canReservation ? 'inline-block' : 'none';
+    maintenanceBtn.style.display = canMaintenance ? 'inline-block' : 'none';
+    cleaningBtn.style.display = canCleaning ? 'inline-block' : 'none';
+  }
+
+  openListViewAddEvent(type) {
+    if (!this.selectedPropertyId) {
+      alert('Please select a property first');
+      return;
+    }
+
+    const permissionMap = {
+      reservation: 'can_create_reservation',
+      cleaning: 'can_add_cleaning',
+      maintenance: 'can_add_maintenance',
+    };
+    const permissionType = permissionMap[type];
+    if (!permissionType || !this.hasPermission(this.selectedPropertyId, permissionType)) {
+      alert('You do not have permission to create events for this property');
+      return;
+    }
+
+    const today = this._localDateStr(new Date());
+    this.openEventModal(type, this.selectedPropertyId, today, today);
   }
 
   openEventTypeSelector(propertyId, startDate, endDate) {
