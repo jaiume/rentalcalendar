@@ -274,6 +274,10 @@ class DashboardApiController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
+        if ($endDate < $startDate) {
+            [$startDate, $endDate] = [$endDate, $startDate];
+        }
+
         // Check permission
         if (!$isAdmin && !$this->permissionDao->hasPermission($userId, (int)$propertyId, 'can_create_reservation')) {
             $response = new SlimResponse();
@@ -370,6 +374,10 @@ class DashboardApiController
             $response = new SlimResponse();
             $response->getBody()->write(json_encode(['error' => 'Missing required fields']));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        if ($endDate < $startDate) {
+            [$startDate, $endDate] = [$endDate, $startDate];
         }
 
         // Check permission

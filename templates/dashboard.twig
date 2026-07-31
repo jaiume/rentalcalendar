@@ -372,6 +372,18 @@
 .calendar-day-row[data-row-type="maintenance"] { z-index: 2; }
 .calendar-day-row[data-row-type="cleaning"]    { z-index: 3; }
 
+/* Overlay rows must not steal clicks from reservations underneath */
+.calendar-day-row[data-row-type="maintenance"],
+.calendar-day-row[data-row-type="cleaning"] {
+  pointer-events: none;
+}
+.calendar-day-row[data-row-type="maintenance"] .event-bar,
+.calendar-day-row[data-row-type="cleaning"] .event-bar,
+.calendar-day-row[data-row-type="maintenance"] .calendar-event-span,
+.calendar-day-row[data-row-type="cleaning"] .calendar-event-span {
+  pointer-events: auto;
+}
+
 .calendar-event-span {
   position: absolute;
   top: 2px;
@@ -549,6 +561,18 @@
 .multi-calendar-cell-row[data-row-type="reservation"] { top: 0; bottom: 8px; z-index: 1; }
 .multi-calendar-cell-row[data-row-type="maintenance"] { top: 0; bottom: 8px; z-index: 2; }
 .multi-calendar-cell-row[data-row-type="cleaning"]    { top: 0; bottom: 8px; z-index: 3; }
+
+/* Overlay rows must not steal clicks from reservations underneath */
+.multi-calendar-cell-row[data-row-type="maintenance"],
+.multi-calendar-cell-row[data-row-type="cleaning"] {
+  pointer-events: none;
+}
+.multi-calendar-cell-row[data-row-type="maintenance"] .multi-calendar-event,
+.multi-calendar-cell-row[data-row-type="cleaning"] .multi-calendar-event,
+.multi-calendar-cell-row[data-row-type="maintenance"] .multi-calendar-event-span,
+.multi-calendar-cell-row[data-row-type="cleaning"] .multi-calendar-event-span {
+  pointer-events: auto;
+}
 
 .multi-calendar-event-span {
   position: absolute;
@@ -2631,9 +2655,11 @@ class Dashboard {
   }
 
   addDayInteractionHandlers(dayDiv, propertyId, dateStr) {
+    const eventSelector = '.event-bar, .calendar-event-span, .event-reservation, .event-cleaning, .event-maintenance';
+
     dayDiv.addEventListener('mousedown', (e) => {
       // Don't start drag if clicking on an event or its children
-      if (e.target.closest('.event-bar, .event-reservation, .event-cleaning, .event-maintenance')) {
+      if (e.target.closest(eventSelector)) {
         return;
       }
       e.preventDefault();
@@ -2645,7 +2671,7 @@ class Dashboard {
       if (!this.documentMouseUpHandler) {
         this.documentMouseUpHandler = (e) => {
           // Don't open selector if clicking on an event
-          if (e.target.closest('.event-bar, .event-reservation, .event-cleaning, .event-maintenance')) {
+          if (e.target.closest(eventSelector)) {
             this.dragStart = null;
             this.dragEnd = null;
             this.clearSelection();
@@ -2677,7 +2703,7 @@ class Dashboard {
 
     dayDiv.addEventListener('mouseup', (e) => {
       // Don't open selector if clicking on an event
-      if (e.target.closest('.event-bar, .event-reservation, .event-cleaning, .event-maintenance')) {
+      if (e.target.closest(eventSelector)) {
         if (this.dragStart) {
           this.dragStart = null;
           this.dragEnd = null;
@@ -2931,7 +2957,13 @@ class Dashboard {
     this.openEventModal(type, this.selectedPropertyId, today, today);
   }
 
+  normalizeDateRange(startDate, endDate) {
+    const dates = [startDate, endDate || startDate].sort();
+    return { startDate: dates[0], endDate: dates[1] };
+  }
+
   openEventTypeSelector(propertyId, startDate, endDate) {
+    ({ startDate, endDate } = this.normalizeDateRange(startDate, endDate));
     this.pendingEventSelection = { propertyId, startDate, endDate };
     
     // Filter buttons based on permissions
@@ -3016,6 +3048,7 @@ class Dashboard {
 
   openEventModal(type, propertyId, startDate, endDate, eventData = null) {
     const isEdit = !!eventData;
+    ({ startDate, endDate } = this.normalizeDateRange(startDate, endDate));
     
     // Check if this is a sync partner reservation (read-only)
     const isSyncPartner = isEdit && type === 'reservation' && 
@@ -3191,9 +3224,26 @@ class Dashboard {
   async saveEvent() {
     const type = document.getElementById('eventType').value;
     const propertyId = document.getElementById('eventPropertyId').value;
-    const startDate = document.getElementById('eventStartDate').value;
-    const endDate = document.getElementById('eventEndDate').value;
     const eventId = document.getElementById('eventId').value;
+
+    // Prefer visible date inputs when shown (user may have edited them)
+    const dateRangeInputs = document.getElementById('dateRangeInputs');
+    const startDateInput = document.getElementById('eventStartDateInput');
+    const endDateInput = document.getElementById('eventEndDateInput');
+    let startDate;
+    let endDate;
+    if (dateRangeInputs && dateRangeInputs.style.display !== 'none' && startDateInput?.value) {
+      startDate = startDateInput.value;
+      endDate = type === 'cleaning' ? startDate : (endDateInput?.value || startDate);
+    } else {
+      startDate = document.getElementById('eventStartDate').value;
+      endDate = document.getElementById('eventEndDate').value;
+    }
+    if (type !== 'cleaning') {
+      ({ startDate, endDate } = this.normalizeDateRange(startDate, endDate));
+    }
+    document.getElementById('eventStartDate').value = startDate;
+    document.getElementById('eventEndDate').value = endDate;
 
     let endpoint = '';
     let payload = {};
